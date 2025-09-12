@@ -1169,26 +1169,59 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const downloadJSON = (data: object, filename: string) => {
     const jsonString = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonString], { type: 'application/octet-stream' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const file = new File([blob], filename, { type: 'application/octet-stream' });
+
+    // Use Web Share API if available (best for mobile, especially iOS Safari)
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({
+        files: [file],
+        title: `Exportar: ${filename}`,
+      }).catch((error) => {
+        // AbortError is expected if the user cancels the share dialog.
+        if (error.name !== 'AbortError') {
+          console.error('Error al compartir:', error);
+          alert('Error: No se pudo compartir el archivo.');
+        }
+      });
+    } else {
+      // Fallback for desktop or browsers without Web Share API
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   };
   
   const downloadTXT = (text: string, filename: string) => {
     const blob = new Blob([text], { type: 'application/octet-stream' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const file = new File([blob], filename, { type: 'application/octet-stream' });
+
+    // Use Web Share API if available
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({
+        files: [file],
+        title: `Exportar: ${filename}`,
+      }).catch((error) => {
+        if (error.name !== 'AbortError') {
+          console.error('Error al compartir:', error);
+          alert('Error: No se pudo compartir el archivo.');
+        }
+      });
+    } else {
+      // Fallback
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   };
 
   const exportData = () => {
