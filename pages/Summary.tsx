@@ -313,6 +313,7 @@ const Summary: React.FC = () => {
     summaryLogs, dailyLogs, removeSummaryLog, removeSummaryLogMedia,
     exportData, importData, exportSummaryData, removeWeekData, exportWeekData, exportDayData,
     removeDayExercises, exportDataAsText, exportSummaryDataAsText, exportWeekDataAsText, exportDayDataAsText,
+    downloadJSON, downloadTXT,
     sedeColorStyles,
     summaryCollapsedWeeks, summaryCollapsedDays, summaryCollapsedExercises,
     toggleSummaryWeekCollapse, toggleSummaryDayCollapse, toggleSummaryExerciseCollapse,
@@ -393,18 +394,6 @@ const Summary: React.FC = () => {
   }, [groupedDataByWeek]);
   
   const getSedeColor = (sedeName: string) => sedeColorStyles.get(sedeName)?.tag || 'bg-gray-500 text-white';
-
-  const downloadTXT = (text: string, filename: string) => {
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
 
   const formatExerciseLogAsText = (log: ExerciseLog): string => {
     const isNadaTab = log.day === 'Día 5';
@@ -554,19 +543,6 @@ const Summary: React.FC = () => {
     );
   };
 
-  const downloadJSON = (data: object, filename: string) => {
-    const jsonString = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-  
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };

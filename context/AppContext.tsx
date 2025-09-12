@@ -81,6 +81,8 @@ interface AppContextType {
   exportSummaryDataAsText: () => void;
   exportWeekDataAsText: (weekStartDateISO: string) => void;
   exportDayDataAsText: (weekStartDateISO: string, dayName: string) => void;
+  downloadJSON: (data: object, filename: string) => void;
+  downloadTXT: (text: string, filename: string) => void;
   // Fix: Add missing function signatures for Cardio/Nada tracking.
   addNadaSession: (session: Omit<NadaSession, 'id' | 'sede' | 'isSavedToSummary' | 'savedState'>) => void;
   updateWorkoutDayForm: (dayName: string, field: string, value: any) => void;
@@ -1654,6 +1656,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     exportSummaryDataAsText,
     exportWeekDataAsText,
     exportDayDataAsText,
+    downloadJSON,
+    downloadTXT,
     // Fix: Expose Cardio/Nada functions through the context.
     addNadaSession,
     updateWorkoutDayForm,
