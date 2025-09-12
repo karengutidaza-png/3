@@ -1168,7 +1168,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const downloadJSON = (data: object, filename: string) => {
     const jsonString = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
+    const blob = new Blob([jsonString], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1180,7 +1180,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
   
   const downloadTXT = (text: string, filename: string) => {
-    const blob = new Blob([text], { type: 'text/plain' });
+    const blob = new Blob([text], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
