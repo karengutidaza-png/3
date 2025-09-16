@@ -95,7 +95,7 @@ const MetricDisplay: React.FC<{
     const labelSize = size === 'large' ? 'text-sm' : 'text-xs';
 
     return (
-        <div className={`flex items-center gap-3 ${size === 'small' ? 'p-2' : 'p-4 rounded-lg bg-gray-800/50'}`}>
+        <div className={`flex items-center gap-3 ${size === 'small' ? '' : 'p-4 rounded-lg bg-gray-800/50'}`}>
             <Icon className={`${iconSize} text-cyan-400 flex-shrink-0`} />
             <div>
                 <p className={`${labelSize} text-gray-400`}>{label}</p>
@@ -178,38 +178,41 @@ const HistoryCard: React.FC<{
     
     const imcData = getImcClassification(entry.imc);
 
-    const handleDeleteClick = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onDelete();
-    };
-
     return (
-        <button 
-            onClick={onEdit}
-            className="w-full bg-black/20 rounded-xl p-4 border border-white/10 flex flex-col text-left transition-all duration-200 hover:bg-white/5 hover:border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-        >
-            <div className="flex justify-between items-center mb-3">
-                <p className="font-semibold text-cyan-300">{formatFullDisplayDate(entry.date)}</p>
-                <button 
-                    onClick={handleDeleteClick} 
-                    className="p-2 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-500/10 z-10 relative" 
-                    aria-label="Eliminar registro"
-                >
-                    <Trash2 className="w-5 h-5" />
-                </button>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2">
-                <MetricDisplay size="small" icon={Weight} label="Peso" value={entry.weight} unit="kg" comparison={comparisons.weight} />
-                <MetricDisplay size="small" icon={BarChart4} label="IMC" value={entry.imc} unit="" comparison={comparisons.imc} />
-                <MetricDisplay size="small" icon={Percent} label="Grasa Corporal" value={entry.fatPercentage} unit="%" comparison={comparisons.fatPercentage} />
-                <MetricDisplay size="small" icon={Scale} label="Músculo" value={entry.musclePercentage} unit="%" comparison={comparisons.musclePercentage} />
-            </div>
-             {entry.imc && (
-                <div className="mt-2 text-center">
-                    <p className={`${imcData.bgColor} ${imcData.color} font-semibold px-2 py-0.5 rounded-full text-xs inline-block`}>{imcData.classification}</p>
+        <div className="w-full bg-black/20 rounded-xl p-4 border border-white/10 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-500/10 hover:border-cyan-400/50">
+            <div className="flex justify-between items-start mb-3">
+                <div>
+                    <p className="font-bold text-lg text-white">{formatFullDisplayDate(entry.date)}</p>
+                    {entry.imc && (
+                         <p className={`${imcData.bgColor} ${imcData.color} font-semibold px-2 py-0.5 rounded-full text-xs inline-block mt-1`}>{imcData.classification}</p>
+                    )}
                 </div>
-            )}
-        </button>
+                <div className="flex-shrink-0 flex items-center gap-1">
+                    <button 
+                        onClick={onEdit}
+                        className="p-2 text-gray-400 hover:text-cyan-400 transition rounded-full hover:bg-cyan-500/10"
+                        aria-label="Editar registro"
+                    >
+                        <Pencil className="w-5 h-5" />
+                    </button>
+                    <button 
+                        onClick={onDelete} 
+                        className="p-2 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-500/10" 
+                        aria-label="Eliminar registro"
+                    >
+                        <Trash2 className="w-5 h-5" />
+                    </button>
+                </div>
+            </div>
+            <div className="pt-4 mt-3 border-t border-gray-700/50">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+                    <MetricDisplay size="small" icon={Weight} label="Peso" value={entry.weight} unit="kg" comparison={comparisons.weight} />
+                    <MetricDisplay size="small" icon={BarChart4} label="IMC" value={entry.imc} unit="" comparison={comparisons.imc} />
+                    <MetricDisplay size="small" icon={Percent} label="Grasa Corporal" value={entry.fatPercentage} unit="%" comparison={comparisons.fatPercentage} />
+                    <MetricDisplay size="small" icon={Scale} label="Músculo" value={entry.musclePercentage} unit="%" comparison={comparisons.musclePercentage} />
+                </div>
+            </div>
+        </div>
     );
 };
 
@@ -291,14 +294,14 @@ const WeightEntryModal: React.FC<{
                                     <button
                                         type="button"
                                         onClick={() => alert(
-                                            "El Índice de Masa Corporal (IMC) es una medida que relaciona el peso y la altura para estimar la grasa corporal de una persona.\n\n" +
-                                            "Fórmula: peso (kg) / [altura (m)]²\n\n" +
-                                            "Clasificaciones de la OMS:\n" +
-                                            "• Menos de 18.5: Bajo de Peso\n" +
-                                            "• 18.5 - 24.9: Peso normal\n" +
-                                            "• 25.0 - 29.9: Sobrepeso\n" +
-                                            "• 30.0 - 34.9: Obesidad Ligera\n" +
-                                            "• 35.0 - 39.9: Obesidad\n" +
+                                            "El Índice de Masa Corporal (IMC) es una medida que relaciona el peso y la altura para estimar la grasa corporal de una persona.\\n\\n" +
+                                            "Fórmula: peso (kg) / [altura (m)]²\\n\\n" +
+                                            "Clasificaciones de la OMS:\\n" +
+                                            "• Menos de 18.5: Bajo de Peso\\n" +
+                                            "• 18.5 - 24.9: Peso normal\\n" +
+                                            "• 25.0 - 29.9: Sobrepeso\\n" +
+                                            "• 30.0 - 34.9: Obesidad Ligera\\n" +
+                                            "• 35.0 - 39.9: Obesidad\\n" +
                                             "• 40.0 o más: Obesidad Grave"
                                         )}
                                         className="text-gray-500 hover:text-cyan-400 transition-colors"
@@ -391,29 +394,27 @@ const PesoPage: React.FC = () => {
             <GoalCard latestFatEntry={latestEntryWithFat} />
             
             {/* History */}
-            <div className="bg-gray-900/60 backdrop-blur-md border border-white/10 rounded-2xl p-4 sm:p-6">
-                 <div className="space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
-                    {weightHistory.length === 0 ? (
-                        <button 
-                            onClick={() => handleOpenModal()}
-                            className="w-full text-center py-8 px-4 border-2 border-dashed border-gray-700 rounded-lg transition-colors hover:bg-gray-800 hover:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-                        >
-                            <Scale className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                            <h3 className="font-semibold text-white">Aún no has registrado tu peso</h3>
-                            <p className="text-gray-400 mt-1">Haz clic aquí para añadir tu primer registro.</p>
-                        </button>
-                    ) : (
-                        weightHistory.map((entry, index) => (
-                            <HistoryCard
-                                key={entry.id}
-                                entry={entry}
-                                previousEntry={weightHistory[index + 1] || null}
-                                onEdit={() => handleOpenModal(entry)}
-                                onDelete={() => setEntryToDelete(entry)}
-                            />
-                        ))
-                    )}
-                 </div>
+            <div className="space-y-4">
+                {weightHistory.length === 0 ? (
+                    <button 
+                        onClick={() => handleOpenModal()}
+                        className="w-full text-center py-8 px-4 border-2 border-dashed border-gray-700 rounded-lg transition-colors hover:bg-gray-800 hover:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                    >
+                        <Scale className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+                        <h3 className="font-semibold text-white">Aún no has registrado tu peso</h3>
+                        <p className="text-gray-400 mt-1">Haz clic aquí para añadir tu primer registro.</p>
+                    </button>
+                ) : (
+                    weightHistory.map((entry, index) => (
+                        <HistoryCard
+                            key={entry.id}
+                            entry={entry}
+                            previousEntry={weightHistory[index + 1] || null}
+                            onEdit={() => handleOpenModal(entry)}
+                            onDelete={() => setEntryToDelete(entry)}
+                        />
+                    ))
+                )}
             </div>
 
             <button
