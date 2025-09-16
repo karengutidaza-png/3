@@ -205,8 +205,8 @@ const HistoryCard: React.FC<{
                 <MetricDisplay size="small" icon={Scale} label="Músculo" value={entry.musclePercentage} unit="%" comparison={comparisons.musclePercentage} />
             </div>
              {entry.imc && (
-                <div className="mt-2 text-center">
-                    <p className={`${imcData.bgColor} ${imcData.color} inline-block font-semibold px-2 py-0.5 rounded-full text-xs`}>{imcData.classification}</p>
+                <div className="mt-2 flex justify-center">
+                    <p className={`${imcData.bgColor} ${imcData.color} font-semibold px-2 py-0.5 rounded-full text-xs`}>{imcData.classification}</p>
                 </div>
             )}
         </button>
