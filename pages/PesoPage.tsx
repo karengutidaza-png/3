@@ -137,17 +137,18 @@ const GoalCard: React.FC<{ latestFatEntry: WeightEntry | null }> = ({ latestFatE
   return (
     <div className="bg-gray-800/50 backdrop-blur-md border border-white/10 rounded-2xl p-4 sm:p-6 text-center animate-zoomInPop flex flex-col sm:flex-row items-center justify-center gap-4">
        <div>
-         {latestFatPercentage !== null ? (
-            <>
-                <h2 className="text-xl font-extrabold text-white">Grasa Corporal: <span className="text-cyan-400">{latestFatPercentage}%</span></h2>
-                <p className="text-gray-300">Meta: 10-15%. ¡Sigue así!</p>
-            </>
-         ) : (
-            <>
-                <h2 className="text-xl font-extrabold text-white">Meta: Grasa Corporal 10-15%</h2>
-                <p className="text-gray-300">Registra tu % de grasa para ver tu progreso hacia el objetivo.</p>
-            </>
-         )}
+         <h2 className="text-xl font-extrabold text-white">
+          Grasa Corporal:
+          {latestFatPercentage !== null ? (
+            <span className="text-cyan-400"> {latestFatPercentage}%</span>
+          ) : (
+            <span className="text-gray-500"> - %</span>
+          )}
+        </h2>
+        <p className="text-gray-300">
+          Meta: 10-15%.
+          {latestFatPercentage !== null ? ' ¡Sigue así!' : ' Registra tu % de grasa para ver tu progreso.'}
+        </p>
        </div>
     </div>
   );
