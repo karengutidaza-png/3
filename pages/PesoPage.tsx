@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Weight, Percent, Ruler, Plus, Trash2, Pencil, X, CalendarDays, History, ArrowUp, ArrowDown, Scale, Check, BarChart4, Trophy, HelpCircle } from 'lucide-react';
@@ -22,13 +21,13 @@ const getImcClassification = (imc: string | undefined) => {
 
   if (imcNum < 18.5) {
     return { classification: 'Bajo de Peso', color: 'text-blue-400', bgColor: 'bg-blue-500/10' };
-  } else if (imcNum >= 18.5 && imcNum <= 24.9) {
+  } else if (imcNum >= 18.5 && imcNum < 25.08) {
     return { classification: 'Peso normal', color: 'text-green-400', bgColor: 'bg-green-500/10' };
-  } else if (imcNum >= 25 && imcNum <= 29.9) {
+  } else if (imcNum >= 25.08 && imcNum < 30) {
     return { classification: 'Sobrepeso', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10' };
-  } else if (imcNum >= 30 && imcNum <= 34.9) {
+  } else if (imcNum >= 30 && imcNum < 35) {
     return { classification: 'Obesidad Ligera', color: 'text-orange-400', bgColor: 'bg-orange-500/10' };
-  } else if (imcNum >= 35 && imcNum <= 39.9) {
+  } else if (imcNum >= 35 && imcNum < 40) {
     return { classification: 'Obesidad', color: 'text-red-400', bgColor: 'bg-red-500/10' };
   } else { // imcNum >= 40
     return { classification: 'Obesidad Grave', color: 'text-red-500', bgColor: 'bg-red-500/20' };
