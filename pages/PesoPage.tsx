@@ -205,8 +205,8 @@ const HistoryCard: React.FC<{
                 <MetricDisplay size="small" icon={Scale} label="Músculo" value={entry.musclePercentage} unit="%" comparison={comparisons.musclePercentage} />
             </div>
              {entry.imc && (
-                <div className="mt-2 flex justify-center">
-                    <p className={`${imcData.bgColor} ${imcData.color} font-semibold px-2 py-0.5 rounded-full text-xs`}>{imcData.classification}</p>
+                <div className="mt-2 text-center">
+                    <p className={`${imcData.bgColor} ${imcData.color} font-semibold px-2 py-0.5 rounded-full text-xs inline-block`}>{imcData.classification}</p>
                 </div>
             )}
         </button>
@@ -315,7 +315,7 @@ const WeightEntryModal: React.FC<{
                             </div>
                              <div>
                                 <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Scale className="w-4 h-4 text-cyan-400" />% Músculo</label>
-                                <input type="text" inputMode="decimal" value={formData.musclePercentage || ''} onChange={(e) => handleInputChange('musclePercentage', e.target.value)} className={inputClasses} />
+                                <input type="text" inputMode="numeric" value={formData.musclePercentage || ''} onChange={(e) => handleInputChange('musclePercentage', e.target.value)} className={inputClasses} />
                             </div>
                             <div>
                                 <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><History className="w-4 h-4 text-cyan-400" />Grasa Visceral (1-59)</label>
@@ -392,7 +392,6 @@ const PesoPage: React.FC = () => {
             
             {/* History */}
             <div className="bg-gray-900/60 backdrop-blur-md border border-white/10 rounded-2xl p-4 sm:p-6">
-                 <h2 className="text-xl font-extrabold text-white mb-4 flex items-center gap-2"><History className="text-cyan-400" /> Historial</h2>
                  <div className="space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
                     {weightHistory.length === 0 ? (
                         <button 
