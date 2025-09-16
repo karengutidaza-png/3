@@ -179,25 +179,22 @@ const HistoryCard: React.FC<{
     const imcData = getImcClassification(entry.imc);
 
     return (
-        <div className="w-full bg-black/20 rounded-xl p-4 border border-white/10 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-500/10 hover:border-cyan-400/50">
+        <button
+            onClick={onEdit}
+            className="w-full bg-black/20 rounded-xl p-4 border border-white/10 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-500/10 hover:border-cyan-400/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+            aria-label={`Editar registro de ${formatFullDisplayDate(entry.date)}`}
+        >
             <div className="flex justify-between items-start mb-3">
                 <div>
                     <p className="font-bold text-lg text-white">{formatFullDisplayDate(entry.date)}</p>
-                    {entry.imc && (
-                         <p className={`${imcData.bgColor} ${imcData.color} font-semibold px-2 py-0.5 rounded-full text-xs inline-block mt-1`}>{imcData.classification}</p>
-                    )}
                 </div>
-                <div className="flex-shrink-0 flex items-center gap-1">
+                <div className="flex-shrink-0">
                     <button 
-                        onClick={onEdit}
-                        className="p-2 text-gray-400 hover:text-cyan-400 transition rounded-full hover:bg-cyan-500/10"
-                        aria-label="Editar registro"
-                    >
-                        <Pencil className="w-5 h-5" />
-                    </button>
-                    <button 
-                        onClick={onDelete} 
-                        className="p-2 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-500/10" 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete();
+                        }} 
+                        className="relative z-10 p-2 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-500/10" 
                         aria-label="Eliminar registro"
                     >
                         <Trash2 className="w-5 h-5" />
@@ -212,7 +209,14 @@ const HistoryCard: React.FC<{
                     <MetricDisplay size="small" icon={Scale} label="Músculo" value={entry.musclePercentage} unit="%" comparison={comparisons.musclePercentage} />
                 </div>
             </div>
-        </div>
+            {entry.imc && (
+                <div className="flex justify-center mt-4">
+                    <p className={`${imcData.bgColor} ${imcData.color} font-semibold px-2 py-0.5 rounded-full text-xs inline-block`}>
+                        {imcData.classification}
+                    </p>
+                </div>
+            )}
+        </button>
     );
 };
 
