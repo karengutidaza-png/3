@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Weight, Percent, Ruler, Plus, Trash2, Pencil, X, CalendarDays, History, ArrowUp, ArrowDown, Scale, Check, BarChart4, Trophy } from 'lucide-react';
+import { Weight, Percent, Ruler, Plus, Trash2, Pencil, X, CalendarDays, History, ArrowUp, ArrowDown, Scale, Check, BarChart4, Trophy, HelpCircle } from 'lucide-react';
 import type { WeightEntry } from '../types';
 import ConfirmationModal from '../components/ConfirmationModal';
 import CalendarModal from '../components/CalendarModal';
@@ -80,7 +80,7 @@ const MetricDisplay: React.FC<{
     const hasValue = value && value.trim() !== '';
     
     let colorClass = 'text-white';
-    const lowerIsBetterMetrics = ['Peso', 'IMC', 'Grasa', 'Visceral'];
+    const lowerIsBetterMetrics = ['Peso', 'IMC', 'Grasa Corporal', 'Visceral'];
 
     if (lowerIsBetterMetrics.includes(label)) {
         // Lower is better: decrease is green, increase is red
@@ -136,13 +136,17 @@ const GoalCard: React.FC<{ latestFatEntry: WeightEntry | null }> = ({ latestFatE
   // Goal Not Met or No Data State
   return (
     <div className="bg-gray-800/50 backdrop-blur-md border border-white/10 rounded-2xl p-4 sm:p-6 text-center animate-zoomInPop flex flex-col sm:flex-row items-center justify-center gap-4">
-       <Percent className="w-12 h-12 text-cyan-400 flex-shrink-0" />
        <div>
-         <h2 className="text-xl font-extrabold text-white">Meta: Grasa Corporal 10-15%</h2>
          {latestFatPercentage !== null ? (
-            <p className="text-gray-300">Tu registro más reciente es del <span className="font-bold text-white">{latestFatPercentage}%</span>. ¡Sigue así!</p>
+            <>
+                <h2 className="text-xl font-extrabold text-white">Grasa Corporal: <span className="text-cyan-400">{latestFatPercentage}%</span></h2>
+                <p className="text-gray-300">Meta: 10-15%. ¡Sigue así!</p>
+            </>
          ) : (
-            <p className="text-gray-300">Registra tu % de grasa para ver tu progreso hacia el objetivo.</p>
+            <>
+                <h2 className="text-xl font-extrabold text-white">Meta: Grasa Corporal 10-15%</h2>
+                <p className="text-gray-300">Registra tu % de grasa para ver tu progreso hacia el objetivo.</p>
+            </>
          )}
        </div>
     </div>
@@ -173,19 +177,30 @@ const HistoryCard: React.FC<{
     
     const imcData = getImcClassification(entry.imc);
 
+    const handleDeleteClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onDelete();
+    };
+
     return (
-        <div className="bg-black/20 rounded-xl p-4 border border-white/10 flex flex-col">
+        <button 
+            onClick={onEdit}
+            className="w-full bg-black/20 rounded-xl p-4 border border-white/10 flex flex-col text-left transition-all duration-200 hover:bg-white/5 hover:border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+        >
             <div className="flex justify-between items-center mb-3">
                 <p className="font-semibold text-cyan-300">{formatFullDisplayDate(entry.date)}</p>
-                <div className="flex items-center gap-1">
-                    <button onClick={onEdit} className="p-2 text-gray-400 hover:text-cyan-400 transition rounded-full hover:bg-cyan-500/10" aria-label="Editar registro"><Pencil className="w-5 h-5"/></button>
-                    <button onClick={onDelete} className="p-2 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-500/10" aria-label="Eliminar registro"><Trash2 className="w-5 h-5" /></button>
-                </div>
+                <button 
+                    onClick={handleDeleteClick} 
+                    className="p-2 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-500/10 z-10 relative" 
+                    aria-label="Eliminar registro"
+                >
+                    <Trash2 className="w-5 h-5" />
+                </button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2">
                 <MetricDisplay size="small" icon={Weight} label="Peso" value={entry.weight} unit="kg" comparison={comparisons.weight} />
                 <MetricDisplay size="small" icon={BarChart4} label="IMC" value={entry.imc} unit="" comparison={comparisons.imc} />
-                <MetricDisplay size="small" icon={Percent} label="Grasa" value={entry.fatPercentage} unit="%" comparison={comparisons.fatPercentage} />
+                <MetricDisplay size="small" icon={Percent} label="Grasa Corporal" value={entry.fatPercentage} unit="%" comparison={comparisons.fatPercentage} />
                 <MetricDisplay size="small" icon={Scale} label="Músculo" value={entry.musclePercentage} unit="%" comparison={comparisons.musclePercentage} />
             </div>
              {entry.imc && (
@@ -193,7 +208,7 @@ const HistoryCard: React.FC<{
                     <p className={`${imcData.bgColor} ${imcData.color} inline-block font-semibold px-2 py-0.5 rounded-full text-xs`}>{imcData.classification}</p>
                 </div>
             )}
-        </div>
+        </button>
     );
 };
 
@@ -219,6 +234,17 @@ const WeightEntryModal: React.FC<{
             }
         }
     }, [isOpen, initialData, todaysDateISO, weightHistory]);
+
+    const calculatedIMC = useMemo(() => {
+        const weightNum = parseMetric(formData.weight);
+        const heightNum = parseMetric(formData.height);
+        if (weightNum && weightNum > 0 && heightNum && heightNum > 0) {
+            const heightInMeters = heightNum / 100;
+            const imc = weightNum / (heightInMeters * heightInMeters);
+            return imc.toFixed(2);
+        }
+        return '';
+    }, [formData.weight, formData.height]);
     
     if (!isOpen) return null;
     
@@ -257,6 +283,21 @@ const WeightEntryModal: React.FC<{
                                 <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Ruler className="w-4 h-4 text-cyan-400" />Altura (cm)</label>
                                 <input type="text" inputMode="numeric" value={formData.height} onChange={(e) => handleInputChange('height', e.target.value)} className={inputClasses} />
                             </div>
+                             <div>
+                                <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1">
+                                    <BarChart4 className="w-4 h-4 text-cyan-400" />
+                                    <span>IMC (calculado)</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => alert("El Índice de Masa Corporal (IMC) es una medida que relaciona el peso y la altura para estimar la grasa corporal de una persona.\n\nSe calcula con la fórmula: peso (kg) / [altura (m)]².")}
+                                        className="text-gray-500 hover:text-cyan-400 transition-colors"
+                                        aria-label="Más información sobre IMC"
+                                    >
+                                        <HelpCircle className="w-4 h-4" />
+                                    </button>
+                                </label>
+                                <input type="text" value={calculatedIMC || '...'} readOnly className={`${inputClasses} bg-gray-800/60 cursor-not-allowed text-gray-400 font-bold`} />
+                            </div>
                             <div>
                                 <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Percent className="w-4 h-4 text-cyan-400" />% Grasa Corporal</label>
                                 <input type="text" inputMode="decimal" value={formData.fatPercentage || ''} onChange={(e) => handleInputChange('fatPercentage', e.target.value)} className={inputClasses} />
@@ -265,7 +306,7 @@ const WeightEntryModal: React.FC<{
                                 <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Scale className="w-4 h-4 text-cyan-400" />% Músculo</label>
                                 <input type="text" inputMode="decimal" value={formData.musclePercentage || ''} onChange={(e) => handleInputChange('musclePercentage', e.target.value)} className={inputClasses} />
                             </div>
-                            <div className="sm:col-span-2">
+                            <div>
                                 <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><History className="w-4 h-4 text-cyan-400" />Grasa Visceral (1-59)</label>
                                 <input type="text" inputMode="numeric" value={formData.visceralFat || ''} onChange={(e) => handleInputChange('visceralFat', e.target.value)} className={inputClasses} />
                             </div>
@@ -315,30 +356,10 @@ const PesoPage: React.FC = () => {
             setEntryToDelete(null);
         }
     };
-
-    const latestEntry = useMemo(() => weightHistory[0] || null, [weightHistory]);
-    const previousEntry = useMemo(() => weightHistory[1] || null, [weightHistory]);
     
     const latestEntryWithFat = useMemo(() => 
         weightHistory.find(e => e.fatPercentage && e.fatPercentage.trim() !== '') || null
     , [weightHistory]);
-
-    const comparisons = useMemo(() => {
-        if (!latestEntry) return {};
-        const getMetricComparison = (metric: keyof Omit<WeightEntry, 'id'|'date'>) => 
-            getComparison(parseMetric(latestEntry[metric]), parseMetric(previousEntry?.[metric]));
-
-        return {
-            weight: getMetricComparison('weight'),
-            fatPercentage: getMetricComparison('fatPercentage'),
-            musclePercentage: getMetricComparison('musclePercentage'),
-            visceralFat: getMetricComparison('visceralFat'),
-            height: getMetricComparison('height'),
-            imc: getMetricComparison('imc'),
-        };
-    }, [latestEntry, previousEntry]);
-
-    const imcData = getImcClassification(latestEntry?.imc);
 
     return (
         <div className="space-y-6 pb-24 animate-fadeInUp">
@@ -358,36 +379,19 @@ const PesoPage: React.FC = () => {
             
             <GoalCard latestFatEntry={latestEntryWithFat} />
             
-            {/* Latest Entry Stats */}
-            {latestEntry && (
-                <div className="bg-gray-900/60 backdrop-blur-md border border-white/10 rounded-2xl p-4 sm:p-6">
-                    <h2 className="text-xl font-extrabold text-white mb-4">Último Registro</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <MetricDisplay icon={Weight} label="Peso" value={latestEntry.weight} unit="kg" comparison={comparisons.weight} />
-                        <MetricDisplay icon={BarChart4} label="IMC" value={latestEntry.imc} unit="" comparison={comparisons.imc} />
-                        <MetricDisplay icon={Percent} label="Grasa" value={latestEntry.fatPercentage} unit="%" comparison={comparisons.fatPercentage} />
-                        <MetricDisplay icon={Scale} label="Músculo" value={latestEntry.musclePercentage} unit="%" comparison={comparisons.musclePercentage} />
-                        <MetricDisplay icon={History} label="Visceral" value={latestEntry.visceralFat} unit="" comparison={comparisons.visceralFat} />
-                        <MetricDisplay icon={Ruler} label="Altura" value={latestEntry.height} unit="cm" comparison={comparisons.height} />
-                    </div>
-                     {latestEntry.imc && (
-                        <div className="mt-4 text-center">
-                            <p className={`${imcData.bgColor} ${imcData.color} inline-block font-semibold px-3 py-1 rounded-full text-sm`}>{imcData.classification}</p>
-                        </div>
-                    )}
-                </div>
-            )}
-            
             {/* History */}
             <div className="bg-gray-900/60 backdrop-blur-md border border-white/10 rounded-2xl p-4 sm:p-6">
                  <h2 className="text-xl font-extrabold text-white mb-4 flex items-center gap-2"><History className="text-cyan-400" /> Historial</h2>
                  <div className="space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
                     {weightHistory.length === 0 ? (
-                        <div className="text-center py-8 px-4 border-2 border-dashed border-gray-700 rounded-lg">
+                        <button 
+                            onClick={() => handleOpenModal()}
+                            className="w-full text-center py-8 px-4 border-2 border-dashed border-gray-700 rounded-lg transition-colors hover:bg-gray-800 hover:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                        >
                             <Scale className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                            <p className="text-gray-400">Aún no has registrado tu peso.</p>
-                            <p className="text-gray-500 text-sm">Usa el botón `+` para añadir tu primer registro.</p>
-                        </div>
+                            <h3 className="font-semibold text-white">Aún no has registrado tu peso</h3>
+                            <p className="text-gray-400 mt-1">Haz clic aquí para añadir tu primer registro.</p>
+                        </button>
                     ) : (
                         weightHistory.map((entry, index) => (
                             <HistoryCard
