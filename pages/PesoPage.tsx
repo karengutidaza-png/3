@@ -289,7 +289,17 @@ const WeightEntryModal: React.FC<{
                                     <span>IMC (calculado)</span>
                                     <button
                                         type="button"
-                                        onClick={() => alert("El Índice de Masa Corporal (IMC) es una medida que relaciona el peso y la altura para estimar la grasa corporal de una persona.\n\nSe calcula con la fórmula: peso (kg) / [altura (m)]².")}
+                                        onClick={() => alert(
+                                            "El Índice de Masa Corporal (IMC) es una medida que relaciona el peso y la altura para estimar la grasa corporal de una persona.\n\n" +
+                                            "Fórmula: peso (kg) / [altura (m)]²\n\n" +
+                                            "Clasificaciones de la OMS:\n" +
+                                            "• Menos de 18.5: Peso inferior al normal\n" +
+                                            "• 18.5 - 24.9: Peso normal\n" +
+                                            "• 25.0 - 29.9: Sobrepeso\n" +
+                                            "• 30.0 - 34.9: Obesidad I\n" +
+                                            "• 35.0 - 39.9: Obesidad II\n" +
+                                            "• 40.0 o más: Obesidad III"
+                                        )}
                                         className="text-gray-500 hover:text-cyan-400 transition-colors"
                                         aria-label="Más información sobre IMC"
                                     >
