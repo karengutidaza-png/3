@@ -107,47 +107,13 @@ const dayConfig: { [key: string]: { title: string; icon: React.ElementType } } =
 };
 
 
-// --- WEEKLY GROUPING HELPERS ---
+// --- HELPERS ---
 
 function parseCustomDate(dateString: string): Date | null {
   if (typeof dateString !== 'string' || !dateString.trim()) return null;
-
-  // Handle new YYYY-MM-DD format reliably as a local date
-  if (dateString.includes('-')) {
-    // Appending T00:00:00 makes browsers interpret it as local time, not UTC
-    const date = new Date(dateString + 'T00:00:00');
-    if (!isNaN(date.getTime())) {
-      return date;
-    }
-  }
-
-  // Backwards compatibility for old format: "Lun, 26 ago"
-  const monthMap: { [key: string]: number } = {
-    'ene': 0, 'feb': 1, 'mar': 2, 'abr': 3, 'may': 4, 'jun': 5,
-    'jul': 6, 'ago': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dic': 11
-  };
-  const cleanedString = dateString.toLowerCase().replace(/[,.]/g, '');
-  const parts = cleanedString.split(' ');
-  if (parts.length < 3) return null;
-  
-  const day = parseInt(parts[1], 10);
-  const monthName = parts[2];
-  const month = monthMap[monthName];
-  
-  if (isNaN(day) || month === undefined) return null;
-
-  const today = new Date();
-  let year = today.getFullYear();
-  const potentialDate = new Date(year, month, day);
-
-  // If the parsed date is far in the future, assume it was from last year
-  if (potentialDate > today && (potentialDate.getTime() - today.getTime()) > 30 * 24 * 60 * 60 * 1000) {
-    year -= 1;
-  }
-  
-  const finalDate = new Date(year, month, day);
-  finalDate.setHours(0, 0, 0, 0); // Explicitly set to midnight
-  return finalDate;
+  const date = new Date(dateString + 'T00:00:00');
+  if (!isNaN(date.getTime())) return date;
+  return null;
 }
 
 const formatDisplayDate = (dateString: string): string => {
@@ -161,6 +127,21 @@ const formatDisplayDate = (dateString: string): string => {
     return (formatted.charAt(0).toUpperCase() + formatted.slice(1)).replace(/[,.]/g, '');
   }
   return dateString;
+};
+
+const formatFullDisplayDate = (dateString: string): string => {
+    const date = parseCustomDate(dateString);
+    if (date) {
+      const weekday = date.toLocaleDateString('es-ES', { weekday: 'long' });
+      const day = date.getDate();
+      const month = date.toLocaleDateString('es-ES', { month: 'long' });
+      const year = date.getFullYear();
+      
+      const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+      return `${capitalize(weekday)}, ${day} de ${capitalize(month)} de ${year}`;
+    }
+    return dateString;
 };
 
 // --- PERFORMANCE COMPARISON HELPERS ---
@@ -251,59 +232,12 @@ const MetricItem: React.FC<{
     );
 };
 
-
-function getMonday(d: Date): Date {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(date.setDate(diff));
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-}
-
-const formatWeekRange = (start: Date) => {
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    
-    const startDay = start.getDate();
-    const startMonth = start.toLocaleDateString('es-ES', { month: 'long' });
-    const endDay = end.getDate();
-    const endMonth = end.toLocaleDateString('es-ES', { month: 'long' });
-    const year = start.getFullYear();
-
-    if (startMonth === endMonth) {
-        return `Semana del ${startDay} al ${endDay} de ${startMonth}, ${year}`;
-    } else {
-        return `Semana del ${startDay} de ${startMonth} al ${endDay} de ${endMonth}, ${year}`;
-    }
-};
-
-const dateToYyyyMmDd = (date: Date): string => {
-    const y = date.getFullYear();
-    const m = (date.getMonth() + 1).toString().padStart(2, '0');
-    const d = date.getDate().toString().padStart(2, '0');
-    return `${y}-${m}-${d}`;
-};
-
-interface DayData {
-    exercises: ExerciseLog[];
-}
-
-interface WeekData {
-    startDate: Date;
-    days: { [dayName: string]: DayData };
-}
-
-interface GroupedByWeek {
-    [weekKey: string]: WeekData;
-}
-
 type DeletionTarget = {
-  type: 'exercise' | 'media' | 'week' | 'dayExercises';
-  id: string;
+  type: 'exercise' | 'media' | 'session';
+  id: string; // Log ID, Session Date
   mediaIndex?: number;
   name?: string;
-  day?: string;
+  sessionLogs?: ExerciseLog[]; // For deleting a whole session
 } | null;
 
 // --- SUMMARY COMPONENT ---
@@ -311,12 +245,13 @@ type DeletionTarget = {
 const Summary: React.FC = () => {
   const { 
     summaryLogs, dailyLogs, removeSummaryLog, removeSummaryLogMedia,
-    exportData, importData, exportSummaryData, removeWeekData, exportWeekData, exportDayData,
-    removeDayExercises, exportDataAsText, exportSummaryDataAsText, exportWeekDataAsText, exportDayDataAsText,
+    exportData, importData, exportSummaryData,
+    exportDataAsText, exportSummaryDataAsText,
     downloadJSON, downloadTXT,
     sedeColorStyles,
-    summaryCollapsedWeeks, summaryCollapsedDays, summaryCollapsedExercises,
-    toggleSummaryWeekCollapse, toggleSummaryDayCollapse, toggleSummaryExerciseCollapse,
+    summaryCollapsedDays, summaryCollapsedExercises,
+    toggleSummaryDayCollapse, toggleSummaryExerciseCollapse,
+    todaysDateISO,
   } = useAppContext();
   const [lightboxMedia, setLightboxMedia] = useState<{ allMedia: ExerciseMedia[]; startIndex: number; logId: string; } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -335,64 +270,35 @@ const Summary: React.FC = () => {
     return Array.from(logMap.values());
   }, [dailyLogs, summaryLogs]);
 
-  const groupedDataByWeek = useMemo(() => {
-    const allItems = [
-      ...summaryLogs.map(l => ({ ...l, type: 'exercise' as const }))
-    ];
+  const { todaySession, pastSessions } = useMemo(() => {
+    const sessions: Record<string, { date: string; logs: ExerciseLog[]; totalCalories: number }> = {};
 
-    const grouped: GroupedByWeek = {};
-
-    allItems.forEach(item => {
-      const itemDate = parseCustomDate(item.date);
-      if (!itemDate) return;
-
-      const monday = getMonday(itemDate);
-      const weekKey = dateToYyyyMmDd(monday);
-
-      if (!grouped[weekKey]) {
-        grouped[weekKey] = { startDate: monday, days: {} };
-      }
-
-      const dayName = item.day;
-      if (!grouped[weekKey].days[dayName]) {
-        grouped[weekKey].days[dayName] = { exercises: [] };
-      }
-
-      grouped[weekKey].days[dayName].exercises.push(item as ExerciseLog);
+    summaryLogs.forEach(log => {
+        const date = log.date;
+        if (!date) return;
+        if (!sessions[date]) {
+            sessions[date] = { date, logs: [], totalCalories: 0 };
+        }
+        sessions[date].logs.push(log);
     });
 
-    for (const weekKey in grouped) {
-      for (const dayName in grouped[weekKey].days) {
-        const dayData = grouped[weekKey].days[dayName];
-        
-        const dateSortDesc = (a: ExerciseLog, b: ExerciseLog) => {
-            const dateA = parseCustomDate(a.date);
-            const dateB = parseCustomDate(b.date);
-            if (dateA && dateB) return dateB.getTime() - dateA.getTime();
-            if (dateA) return -1;
-            if (dateB) return 1;
-            return 0;
-        };
-        dayData.exercises.sort(dateSortDesc);
-      }
+    Object.values(sessions).forEach(session => {
+        session.totalCalories = session.logs.reduce((total, log) => total + (parseMetric(log.calorias) || 0), 0);
+    });
 
-      const sortedDays: { [key: string]: DayData } = {};
-      const dayOrder = ['Día 5', 'Día 1', 'Día 2', 'Día 3', 'Día 4'];
-      dayOrder.forEach(dayKey => {
-        if (grouped[weekKey].days[dayKey]) {
-            sortedDays[dayKey] = grouped[weekKey].days[dayKey];
-        }
-      });
-      grouped[weekKey].days = sortedDays;
-    }
+    const sortedSessions = Object.values(sessions).sort((a, b) => {
+        const dateA = parseCustomDate(a.date);
+        const dateB = parseCustomDate(b.date);
+        if (dateA && dateB) return dateB.getTime() - dateA.getTime();
+        return 0;
+    });
+    
+    const today = sortedSessions.find(s => s.date === todaysDateISO);
+    const past = sortedSessions.filter(s => s.date !== todaysDateISO);
+    
+    return { todaySession: today, pastSessions: past };
+  }, [summaryLogs, todaysDateISO]);
 
-    return grouped;
-  }, [summaryLogs]);
-
-  const sortedWeekKeys = useMemo(() => {
-    return Object.keys(groupedDataByWeek).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-  }, [groupedDataByWeek]);
-  
   const getSedeColor = (sedeName: string) => sedeColorStyles.get(sedeName)?.tag || 'bg-gray-500 text-white';
 
   const formatExerciseLogAsText = (log: ExerciseLog): string => {
@@ -413,139 +319,56 @@ const Summary: React.FC = () => {
       `${log.exerciseName.toUpperCase()} - ${formatDisplayDate(log.date)} [Sede: ${log.sede}]`,
       metricsLine,
     ];
-    if (log.tiempo) {
-      lines.push(`  - Tiempo: ${log.tiempo} Min`);
-    }
-    if (log.calorias) {
-      lines.push(`  - Calorías: ${log.calorias} Kcal`);
-    }
-    if (log.notes) {
-      lines.push(`  - Notas: ${log.notes}`);
-    }
+    if (log.tiempo) lines.push(`  - Tiempo: ${log.tiempo} Min`);
+    if (log.calorias) lines.push(`  - Calorías: ${log.calorias} Kcal`);
+    if (log.notes) lines.push(`  - Notas: ${log.notes}`);
     return lines.join('\n');
   };
   
-  const formatFullDisplayDate = (dateString: string): string => {
-    const date = parseCustomDate(dateString);
-    if (date) {
-      const weekday = date.toLocaleDateString('es-ES', { weekday: 'long' });
-      const day = date.getDate();
-      const month = date.toLocaleDateString('es-ES', { month: 'long' });
-      const year = date.getFullYear();
-      
-      const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-      return `${capitalize(weekday)} ${day} ${capitalize(month)} ${year}`;
-    }
-    return dateString;
-  };
-
-  const ShareableCardModal: React.FC<{
-    item: ExerciseLog | null;
-    onClose: () => void;
-  }> = ({ item, onClose }) => {
-    if (!item) return null;
+  const generateSessionText = (logs: ExerciseLog[], date: string, totalCalories: number) => {
+    let text = `Resumen de Sesión - ${formatFullDisplayDate(date)}\n`;
+    text += `Total Calorías: ${totalCalories.toLocaleString('es-ES')} Kcal\n`;
+    text += '====================================\n\n';
     
+    logs.forEach(log => {
+      text += formatExerciseLogAsText(log) + '\n\n';
+    });
+    return text;
+  }
+
+  const ShareableCardModal: React.FC<{ item: ExerciseLog | null; onClose: () => void; }> = ({ item, onClose }) => {
+    if (!item) return null;
     const isNadaTab = item.day === 'Día 5';
   
     return (
-      <div
-        className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[100] animate-fadeIn"
-        onClick={onClose}
-      >
-          <div 
-            className="relative bg-gradient-to-br from-gray-900 to-black p-8 rounded-2xl border border-cyan-500/30 shadow-2xl shadow-cyan-500/20 w-full max-w-md m-4 animate-scaleIn"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white transition"
-              aria-label="Cerrar"
-            >
-              <X className="w-6 h-6" />
-            </button>
-  
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[100] animate-fadeIn" onClick={onClose}>
+          <div className="relative bg-gradient-to-br from-gray-900 to-black p-8 rounded-2xl border border-cyan-500/30 shadow-2xl shadow-cyan-500/20 w-full max-w-md m-4 animate-scaleIn" onClick={(e) => e.stopPropagation()}>
+            <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white transition" aria-label="Cerrar"><X className="w-6 h-6" /></button>
             <div className="flex items-center gap-4 mb-6">
-               <div className="p-3 bg-cyan-500/20 rounded-full">
-                  <Dumbbell className="w-8 h-8 text-cyan-400" />
-               </div>
+               <div className="p-3 bg-cyan-500/20 rounded-full"><Dumbbell className="w-8 h-8 text-cyan-400" /></div>
                <div>
-                  <h2 className="text-2xl font-bold text-white">
-                    <span className="uppercase">{(item as ExerciseLog).exerciseName}</span>
-                  </h2>
+                  <h2 className="text-2xl font-bold text-white"><span className="uppercase">{item.exerciseName}</span></h2>
                   <div className="flex items-center gap-2">
                       <p className="text-gray-400">{formatDisplayDate(item.date)}</p>
                       <span className={`${getSedeColor(item.sede)} text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1`}><MapPin className="w-3 h-3"/>{item.sede}</span>
                   </div>
                </div>
             </div>
-  
             <div className="grid grid-cols-2 gap-6 mb-6">
-                {(item as ExerciseLog).tiempo?.trim() && (
-                    <div className="flex items-center gap-3">
-                        <Clock className="w-7 h-7 text-cyan-400" />
-                        <div>
-                        <p className="text-sm text-gray-400">Tiempo</p>
-                        <p className="text-xl font-semibold text-white">{(item as ExerciseLog).tiempo} Min</p>
-                        </div>
-                    </div>
-                )}
-                {(item as ExerciseLog).series?.trim() && (
-                    <div className="flex items-center gap-3">
-                    {isNadaTab ? <Zap className="w-7 h-7 text-cyan-400" /> : <BarChart4 className="w-7 h-7 text-cyan-400" />}
-                    <div>
-                        <p className="text-sm text-gray-400">{isNadaTab ? 'Velocidad' : 'Series'}</p>
-                        <p className="text-xl font-semibold text-white">{(item as ExerciseLog).series}{isNadaTab ? ' Km/h' : ''}</p>
-                    </div>
-                    </div>
-                )}
-                {(item as ExerciseLog).reps?.trim() && (
-                    <div className="flex items-center gap-3">
-                    {isNadaTab ? <Gauge className="w-7 h-7 text-cyan-400" /> : <Repeat className="w-7 h-7 text-cyan-400" />}
-                    <div>
-                        <p className="text-sm text-gray-400">{isNadaTab ? 'Distancia' : 'Reps'}</p>
-                        <p className="text-xl font-semibold text-white">{(item as ExerciseLog).reps}{isNadaTab && (item as ExerciseLog).distanceUnit ? ` ${ (item as ExerciseLog).distanceUnit === 'KM' ? 'Kilómetros' : 'Metros'}` : ''}</p>
-                    </div>
-                    </div>
-                )}
-                {(item as ExerciseLog).calorias?.trim() && (
-                    <div className="flex items-center gap-3">
-                    <Flame className="w-7 h-7 text-cyan-400" />
-                    <div>
-                        <p className="text-sm text-gray-400">Calorías</p>
-                        <p className="text-xl font-semibold text-white">{(item as ExerciseLog).calorias} Kcal</p>
-                    </div>
-                    </div>
-                )}
-                {(item as ExerciseLog).kilos?.trim() && (
-                    <div className="flex items-center gap-3">
-                    {isNadaTab ? <TrendingUp className="w-7 h-7 text-cyan-400" /> : <Weight className="w-7 h-7 text-cyan-400" />}
-                    <div>
-                        <p className="text-sm text-gray-400">{isNadaTab ? 'Inclinación' : 'Kilos'}</p>
-                        <p className="text-xl font-semibold text-white">{(item as ExerciseLog).kilos}{isNadaTab ? ' %' : ' kgs'}</p>
-                    </div>
-                    </div>
-                )}
+                {item.tiempo?.trim() && <div className="flex items-center gap-3"><Clock className="w-7 h-7 text-cyan-400" /><div><p className="text-sm text-gray-400">Tiempo</p><p className="text-xl font-semibold text-white">{item.tiempo} Min</p></div></div>}
+                {item.series?.trim() && <div className="flex items-center gap-3">{isNadaTab ? <Zap className="w-7 h-7 text-cyan-400" /> : <BarChart4 className="w-7 h-7 text-cyan-400" />}<div><p className="text-sm text-gray-400">{isNadaTab ? 'Velocidad' : 'Series'}</p><p className="text-xl font-semibold text-white">{item.series}{isNadaTab ? ' Km/h' : ''}</p></div></div>}
+                {item.reps?.trim() && <div className="flex items-center gap-3">{isNadaTab ? <Gauge className="w-7 h-7 text-cyan-400" /> : <Repeat className="w-7 h-7 text-cyan-400" />}<div><p className="text-sm text-gray-400">{isNadaTab ? 'Distancia' : 'Reps'}</p><p className="text-xl font-semibold text-white">{item.reps}{isNadaTab && item.distanceUnit ? ` ${ item.distanceUnit === 'KM' ? 'Kilómetros' : 'Metros'}` : ''}</p></div></div>}
+                {item.calorias?.trim() && <div className="flex items-center gap-3"><Flame className="w-7 h-7 text-cyan-400" /><div><p className="text-sm text-gray-400">Calorías</p><p className="text-xl font-semibold text-white">{item.calorias} Kcal</p></div></div>}
+                {item.kilos?.trim() && <div className="flex items-center gap-3">{isNadaTab ? <TrendingUp className="w-7 h-7 text-cyan-400" /> : <Weight className="w-7 h-7 text-cyan-400" />}<div><p className="text-sm text-gray-400">{isNadaTab ? 'Inclinación' : 'Kilos'}</p><p className="text-xl font-semibold text-white">{item.kilos}{isNadaTab ? ' %' : ' kgs'}</p></div></div>}
             </div>
-  
-            {item.notes && (
-              <div className="mb-6">
-                 <h3 className="font-semibold text-cyan-400 mb-2 flex items-center gap-2"><NotebookText className="w-5 h-5"/>Notas</h3>
-                 <p className="text-gray-300 bg-black/30 p-3 rounded-lg border-l-2 border-cyan-500/50 whitespace-pre-wrap italic">{item.notes}</p>
-              </div>
-            )}
-            
-            <div className="text-center text-gray-500 font-bold tracking-widest text-sm uppercase mt-8">
-              PROGRESIÓN DE CARGA
-            </div>
-        </div>
+            {item.notes && <div className="mb-6"><h3 className="font-semibold text-cyan-400 mb-2 flex items-center gap-2"><NotebookText className="w-5 h-5"/>Notas</h3><p className="text-gray-300 bg-black/30 p-3 rounded-lg border-l-2 border-cyan-500/50 whitespace-pre-wrap italic">{item.notes}</p></div>}
+            <div className="text-center text-gray-500 font-bold tracking-widest text-sm uppercase mt-8">PROGRESIÓN DE CARGA</div>
+          </div>
       </div>
     );
   };
 
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleImportClick = () => fileInputRef.current?.click();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -558,21 +381,15 @@ const Summary: React.FC = () => {
           alert('¡Datos importados con éxito!');
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'El archivo de importación no es válido o está corrupto.';
-          console.error("Error importing data:", error);
           alert(`Error al importar: ${errorMessage}`);
         }
       };
       reader.readAsText(file);
     }
-    if (event.target) {
-      event.target.value = '';
-    }
+    if (event.target) event.target.value = '';
   };
   
-  const handleCloseLightbox = () => {
-    setLightboxMedia(null);
-  };
-
+  const handleCloseLightbox = () => setLightboxMedia(null);
   const baseButtonClass = "flex items-center gap-1.5 text-xs font-semibold py-2 px-2 sm:px-3 rounded-lg text-white shadow-md transition-all duration-300 transform hover:scale-105 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 btn-active";
   
   const handleConfirmDelete = () => {
@@ -587,13 +404,8 @@ const Summary: React.FC = () => {
           handleCloseLightbox();
         }
         break;
-      case 'week':
-        removeWeekData(deletionTarget.id);
-        break;
-      case 'dayExercises':
-        if (deletionTarget.day) {
-          removeDayExercises(deletionTarget.id, deletionTarget.day);
-        }
+      case 'session':
+        deletionTarget.sessionLogs?.forEach(log => removeSummaryLog(log.id));
         break;
     }
     setDeletionTarget(null);
@@ -608,101 +420,36 @@ const Summary: React.FC = () => {
         <div className="flex justify-between items-start gap-4">
           <div className="flex-grow min-w-0">
             <div className="flex items-center gap-2 mb-2">
-                <div className="flex items-center gap-1.5 text-xs text-white min-w-0">
-                    <CalendarDays className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
-                    <span className="font-bold truncate">{formatFullDisplayDate(log.date)}</span>
-                </div>
                 <span className={`${getSedeColor(log.sede)} text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0`}>
                     <MapPin className="w-3 h-3"/>
                     {log.sede}
                 </span>
             </div>
-
             <div className="flex justify-between items-start gap-4">
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedItemForCard(log);
-                    }}
-                    className="min-w-0 flex-grow flex justify-center items-center rounded-lg hover:bg-white/5 p-2 -m-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-                    aria-label="Ver tarjeta de métricas"
-                >
+                <button onClick={(e) => { e.stopPropagation(); setSelectedItemForCard(log); }} className="min-w-0 flex-grow flex justify-center items-center rounded-lg hover:bg-white/5 p-2 -m-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50" aria-label="Ver tarjeta de métricas">
                   <div className="flex justify-center flex-wrap gap-x-4 gap-y-3 text-sm">
-                    {isNadaTab ? (
-                      <>
-                        <MetricItem label="Tiempo" value={log.tiempo} unit="Min" Icon={Clock} comparison={comparisons.tiempo} />
-                        <MetricItem label="Velocidad" value={log.series} unit="Km/h" Icon={Zap} comparison={comparisons.series} />
-                        <MetricItem label="Distancia" value={log.reps} unit={log.distanceUnit ? (log.distanceUnit === 'KM' ? 'Km' : 'm') : ''} Icon={Gauge} comparison={comparisons.reps} />
-                        <MetricItem label="Calorías" value={log.calorias} unit="Kcal" Icon={Flame} comparison={comparisons.calorias} />
-                        <MetricItem label="Inclinación" value={log.kilos} unit="%" Icon={TrendingUp} comparison={comparisons.kilos} />
-                      </>
-                    ) : (
-                      <>
-                        <MetricItem label="Series" value={log.series} unit="" Icon={BarChart4} comparison={comparisons.series} />
-                        <MetricItem label="Reps" value={log.reps} unit="" Icon={Repeat} comparison={comparisons.reps} />
-                        <MetricItem label="Kilos" value={log.kilos} unit="kgs" Icon={Weight} comparison={comparisons.kilos} />
-                        <MetricItem label="Tiempo" value={log.tiempo} unit="Min" Icon={Clock} comparison={comparisons.tiempo} />
-                        <MetricItem label="Calorías" value={log.calorias} unit="Kcal" Icon={Flame} comparison={comparisons.calorias} />
-                      </>
-                    )}
+                    {isNadaTab ? (<><MetricItem label="Tiempo" value={log.tiempo} unit="Min" Icon={Clock} comparison={comparisons.tiempo} /><MetricItem label="Velocidad" value={log.series} unit="Km/h" Icon={Zap} comparison={comparisons.series} /><MetricItem label="Distancia" value={log.reps} unit={log.distanceUnit ? (log.distanceUnit === 'KM' ? 'Km' : 'm') : ''} Icon={Gauge} comparison={comparisons.reps} /><MetricItem label="Calorías" value={log.calorias} unit="Kcal" Icon={Flame} comparison={comparisons.calorias} /><MetricItem label="Inclinación" value={log.kilos} unit="%" Icon={TrendingUp} comparison={comparisons.kilos} /></>) : 
+                    (<><MetricItem label="Series" value={log.series} unit="" Icon={BarChart4} comparison={comparisons.series} /><MetricItem label="Reps" value={log.reps} unit="" Icon={Repeat} comparison={comparisons.reps} /><MetricItem label="Kilos" value={log.kilos} unit="kgs" Icon={Weight} comparison={comparisons.kilos} /><MetricItem label="Tiempo" value={log.tiempo} unit="Min" Icon={Clock} comparison={comparisons.tiempo} /><MetricItem label="Calorías" value={log.calorias} unit="Kcal" Icon={Flame} comparison={comparisons.calorias} /></>)}
                   </div>
                 </button>
                 {log.media && log.media.length > 0 && (
                   <div className="w-32 sm:w-40 md:w-56 flex-shrink-0 grid grid-cols-2 gap-2">
                     {log.media.map((mediaItem, index) => (
                       <div key={index} className="relative group w-full aspect-square rounded-lg overflow-hidden">
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); setLightboxMedia({ allMedia: log.media, startIndex: index, logId: log.id }); }}
-                            className="w-full h-full"
-                        >
-                            {mediaItem.type === 'image' ? (
-                            <img src={mediaItem.dataUrl} alt={`Media ${index + 1}`} className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105" />
-                            ) : (
-                            <video src={mediaItem.dataUrl} muted loop autoPlay playsInline className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105" />
-                            )}
+                        <button onClick={(e) => { e.stopPropagation(); setLightboxMedia({ allMedia: log.media, startIndex: index, logId: log.id }); }} className="w-full h-full">
+                            {mediaItem.type === 'image' ? <img src={mediaItem.dataUrl} alt={`Media ${index + 1}`} className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105" /> : <video src={mediaItem.dataUrl} muted loop autoPlay playsInline className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105" />}
                         </button>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setDeletionTarget({ type: 'media', id: log.id, mediaIndex: index, name: 'este archivo' });
-                            }}
-                            className="absolute top-1 right-1 bg-red-600/80 hover:bg-red-600 text-white rounded-full p-1 z-10 transition-opacity opacity-0 group-hover:opacity-100"
-                            aria-label="Eliminar media"
-                        >
-                            <Trash2 className="w-3 h-3" />
-                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); setDeletionTarget({ type: 'media', id: log.id, mediaIndex: index, name: 'este archivo' }); }} className="absolute top-1 right-1 bg-red-600/80 hover:bg-red-600 text-white rounded-full p-1 z-10 transition-opacity opacity-0 group-hover:opacity-100" aria-label="Eliminar media"><Trash2 className="w-3 h-3" /></button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-              {log.notes && (
-                <div className="mt-3 pt-3 border-t border-gray-700/50">
-                  <div className="flex items-start gap-2 text-gray-300 text-sm italic">
-                    <NotebookText className="w-4 h-4 mt-0.5 flex-shrink-0 text-cyan-400" />
-                    <p className="whitespace-pre-wrap">{log.notes}</p>
-                  </div>
-                </div>
-              )}
+              {log.notes && <div className="mt-3 pt-3 border-t border-gray-700/50"><div className="flex items-start gap-2 text-gray-300 text-sm italic"><NotebookText className="w-4 h-4 mt-0.5 flex-shrink-0 text-cyan-400" /><p className="whitespace-pre-wrap">{log.notes}</p></div></div>}
           </div>
-
           <div className="flex-shrink-0 flex flex-col items-center justify-center gap-2 pl-2">
-              <button onClick={(e) => {
-                  e.stopPropagation();
-                  setExportOptions({
-                      title: `Exportar ${log.exerciseName}`,
-                      onExportJson: () => downloadJSON({ summaryLogs: [log] }, `ejercicio-${log.exerciseName.replace(/\s+/g, '-')}-${log.date}.json`),
-                      onExportText: () => {
-                          const textContent = formatExerciseLogAsText(log);
-                          downloadTXT(textContent, `ejercicio-${log.exerciseName.replace(/\s+/g, '-')}-${log.date}.txt`);
-                      }
-                  });
-              }} className="p-2 text-gray-400 hover:text-cyan-500 transition rounded-full hover:bg-cyan-500/10" aria-label={`Exportar registro`}>
-                  <Save className="w-5 h-5" />
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); setDeletionTarget({ type: 'exercise', id: log.id, name: `el registro de ${log.exerciseName}` }); }} className="p-2 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-500/10" aria-label={`Quitar del resumen`}>
-                <Trash2 className="w-5 h-5" />
-              </button>
+              <button onClick={(e) => { e.stopPropagation(); setExportOptions({ title: `Exportar ${log.exerciseName}`, onExportJson: () => downloadJSON({ summaryLogs: [log] }, `ejercicio-${log.exerciseName.replace(/\s+/g, '-')}-${log.date}.json`), onExportText: () => downloadTXT(formatExerciseLogAsText(log), `ejercicio-${log.exerciseName.replace(/\s+/g, '-')}-${log.date}.txt`) }); }} className="p-2 text-gray-400 hover:text-cyan-500 transition rounded-full hover:bg-cyan-500/10" aria-label={`Exportar registro`}><Save className="w-5 h-5" /></button>
+              <button onClick={(e) => { e.stopPropagation(); setDeletionTarget({ type: 'exercise', id: log.id, name: `el registro de ${log.exerciseName}` }); }} className="p-2 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-500/10" aria-label={`Quitar del resumen`}><Trash2 className="w-5 h-5" /></button>
             </div>
         </div>
       </div>
@@ -711,250 +458,111 @@ const Summary: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {lightboxMedia && (
-        <MediaLightbox
-          allMedia={lightboxMedia.allMedia}
-          startIndex={lightboxMedia.startIndex}
-          onClose={handleCloseLightbox}
-          onDelete={(indexToDelete) => {
-            setDeletionTarget({ type: 'media', id: lightboxMedia.logId, mediaIndex: indexToDelete, name: 'este archivo' });
-          }}
-        />
+      {lightboxMedia && <MediaLightbox allMedia={lightboxMedia.allMedia} startIndex={lightboxMedia.startIndex} onClose={handleCloseLightbox} onDelete={(indexToDelete) => setDeletionTarget({ type: 'media', id: lightboxMedia.logId, mediaIndex: indexToDelete, name: 'este archivo' })} />}
+      <ConfirmationModal isOpen={!!deletionTarget} onClose={() => setDeletionTarget(null)} onConfirm={handleConfirmDelete} title={`Eliminar ${deletionTarget?.type === 'session' ? 'Sesión' : 'Registro'}`} message={`¿Estás seguro de que quieres eliminar ${deletionTarget?.name ?? 'este elemento'}? Esta acción es irreversible.`} />
+      <ShareableCardModal item={selectedItemForCard} onClose={() => setSelectedItemForCard(null)} />
+      <ExportModal isOpen={!!exportOptions} onClose={() => setExportOptions(null)} title={exportOptions?.title || 'Elige tu formato'} onExportJson={() => { exportOptions?.onExportJson(); setExportOptions(null); }} onExportText={() => { exportOptions?.onExportText(); setExportOptions(null); }} />
+
+      {todaySession && todaySession.totalCalories > 0 && (
+          <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg p-4 flex items-center justify-center gap-4 text-center text-white shadow-lg shadow-orange-500/20 animate-fadeInUp">
+              <Flame className="w-10 h-10 animate-pulse-slow flex-shrink-0" />
+              <div>
+                  <p className="text-lg font-semibold">Hoy has quemado un total de</p>
+                  <p className="text-4xl font-extrabold tracking-tight">{todaySession.totalCalories.toLocaleString('es-ES')} Kcal</p>
+              </div>
+          </div>
       )}
-
-      <ConfirmationModal
-        isOpen={!!deletionTarget}
-        onClose={() => setDeletionTarget(null)}
-        onConfirm={handleConfirmDelete}
-        title={`Eliminar Registro`}
-        message={`¿Estás seguro de que quieres eliminar ${deletionTarget?.name ?? 'este elemento'}? Esta acción es irreversible.`}
-      />
       
-      <ShareableCardModal
-        item={selectedItemForCard}
-        onClose={() => setSelectedItemForCard(null)}
-      />
+      <div className="bg-gray-900/60 backdrop-blur-md border border-white/10 rounded-xl p-4"><div className="flex justify-center gap-2"><button onClick={() => setExportOptions({ title: 'Exportar Resumen', onExportJson: exportSummaryData, onExportText: exportSummaryDataAsText })} className={`${baseButtonClass} bg-gradient-to-r from-indigo-500 to-purple-500 focus:ring-indigo-500`} aria-label="Exportar resumen de datos"><FileUp className="w-4 h-4" /><span>Exportar</span></button><button onClick={handleImportClick} className={`${baseButtonClass} bg-gradient-to-r from-green-500 to-green-600 focus:ring-green-500`} aria-label="Importar datos desde un archivo"><Upload className="w-4 h-4" /><span>Importar</span></button><input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="application/json" /><button onClick={() => setExportOptions({ title: 'Exportar Todo', onExportJson: exportData, onExportText: exportDataAsText })} className={`${baseButtonClass} bg-gradient-to-r from-cyan-500 to-blue-500 focus:ring-cyan-500`} aria-label="Exportar todos los datos"><Download className="w-4 h-4" /><span>Exportar Todo</span></button></div></div>
 
-      <ExportModal
-        isOpen={!!exportOptions}
-        onClose={() => setExportOptions(null)}
-        title={exportOptions?.title || 'Elige tu formato'}
-        onExportJson={() => {
-          exportOptions?.onExportJson();
-          setExportOptions(null);
-        }}
-        onExportText={() => {
-          exportOptions?.onExportText();
-          setExportOptions(null);
-        }}
-      />
-      
-      <div className="bg-gray-900/60 backdrop-blur-md border border-white/10 rounded-xl p-4">
-        <div className="flex justify-center gap-2">
-          <button
-            onClick={() => setExportOptions({
-              title: 'Exportar Resumen',
-              onExportJson: exportSummaryData,
-              onExportText: exportSummaryDataAsText
-            })}
-            className={`${baseButtonClass} bg-gradient-to-r from-indigo-500 to-purple-500 focus:ring-indigo-500`}
-            aria-label="Exportar resumen de datos"
-          >
-            <FileUp className="w-4 h-4" />
-            <span>Exportar</span>
-          </button>
-          <button
-            onClick={handleImportClick}
-            className={`${baseButtonClass} bg-gradient-to-r from-green-500 to-green-600 focus:ring-green-500`}
-            aria-label="Importar datos desde un archivo"
-          >
-            <Upload className="w-4 h-4" />
-            <span>Importar</span>
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            className="hidden"
-            accept="application/json"
-          />
-          <button
-            onClick={() => setExportOptions({
-              title: 'Exportar Todo',
-              onExportJson: exportData,
-              onExportText: exportDataAsText
-            })}
-            className={`${baseButtonClass} bg-gradient-to-r from-cyan-500 to-blue-500 focus:ring-cyan-500`}
-            aria-label="Exportar todos los datos"
-          >
-            <Download className="w-4 h-4" />
-            <span>Exportar Todo</span>
-          </button>
-        </div>
-      </div>
-
-      {sortedWeekKeys.length === 0 ? (
-         <div className="bg-gradient-to-br from-gray-900 to-gray-800/50 backdrop-blur-md border border-white/10 rounded-xl p-12 text-center animate-zoomInPop">
-            <History className="w-16 h-16 mx-auto text-cyan-400 mb-4 animate-pulse-slow" />
-            <h2 className="text-3xl font-extrabold mb-4 text-cyan-400 tracking-tight">
-              El Viaje Comienza Aquí
-            </h2>
-            <p className="text-gray-300 max-w-md mx-auto">
-              Tu historial está listo para ser escrito. Cada registro es un paso hacia tu mejor versión. ¡Vamos a empezar!
-            </p>
-        </div>
+      {summaryLogs.length === 0 ? (
+         <div className="bg-gradient-to-br from-gray-900 to-gray-800/50 backdrop-blur-md border border-white/10 rounded-xl p-12 text-center animate-zoomInPop"><History className="w-16 h-16 mx-auto text-cyan-400 mb-4 animate-pulse-slow" /><h2 className="text-3xl font-extrabold mb-4 text-cyan-400 tracking-tight">El Viaje Comienza Aquí</h2><p className="text-gray-300 max-w-md mx-auto">Tu historial está listo para ser escrito. Cada registro es un paso hacia tu mejor versión. ¡Vamos a empezar!</p></div>
       ) : (
-        sortedWeekKeys.map((weekKey, weekIndex) => {
-          const weekData = groupedDataByWeek[weekKey];
-          const isWeekExpanded = !summaryCollapsedWeeks.includes(weekKey);
+        [...(todaySession ? [todaySession] : []), ...pastSessions].map((session, sessionIndex) => {
+          const logsByDay = session.logs.reduce((acc, log) => {
+            const dayName = log.day || 'Otros';
+            if (!acc[dayName]) acc[dayName] = [];
+            acc[dayName].push(log);
+            return acc;
+          }, {} as Record<string, ExerciseLog[]>);
+
+          const dayOrder = ['Día 5', 'Día 1', 'Día 2', 'Día 3', 'Día 4'];
+          const sortedDayKeys = Object.keys(logsByDay).sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
+          const isToday = session.date === todaysDateISO;
 
           return (
-            <div key={weekKey} style={{ animationDelay: `${weekIndex * 150}ms` }} className="bg-gray-900/60 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden animate-zoomInPop opacity-0">
-              <button onClick={() => toggleSummaryWeekCollapse(weekKey)} className="w-full group grid grid-cols-[1fr_auto_1fr] items-center p-4 sm:p-6 bg-gray-800/40 hover:bg-gray-800/60 transition-colors">
-                <div></div> {/* Left spacer */}
-                <h2 className="text-xl sm:text-2xl font-extrabold text-white flex items-center gap-3 text-center px-4 truncate">
-                  <Calendar className="w-6 h-6 text-cyan-400 transition-transform duration-300 group-hover:scale-110"/>
-                  {formatWeekRange(weekData.startDate)}
+            <div key={session.date} style={{ animationDelay: `${sessionIndex * 150}ms` }} className="bg-gray-900/60 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden animate-zoomInPop opacity-0">
+              <div className="flex items-center justify-between p-4 sm:p-6 bg-gray-800/40">
+                <h2 className="text-xl sm:text-2xl font-extrabold text-white flex items-center gap-3 truncate">
+                  <Calendar className="w-6 h-6 text-cyan-400 flex-shrink-0"/>
+                  <span className="truncate">{isToday ? 'Entrenamiento de Hoy' : formatFullDisplayDate(session.date)}</span>
                 </h2>
-                <div className="flex items-center gap-2 justify-self-end">
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setExportOptions({
-                                title: `Exportar ${formatWeekRange(weekData.startDate)}`,
-                                onExportJson: () => exportWeekData(weekKey),
-                                onExportText: () => exportWeekDataAsText(weekKey)
-                            });
-                        }}
-                        className="p-2 text-gray-400 hover:text-cyan-500 hover:bg-cyan-500/10 rounded-full transition-colors"
-                        aria-label={`Exportar datos de la semana`}
-                    >
-                        <Save className="w-5 h-5" />
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setDeletionTarget({ type: 'week', id: weekKey, name: `la semana del ${formatWeekRange(weekData.startDate)}` });
-                        }}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
-                        aria-label={`Eliminar semana del ${formatWeekRange(weekData.startDate)}`}
-                    >
-                        <Trash2 className="w-5 h-5" />
-                    </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setExportOptions({ title: `Exportar Sesión`, onExportJson: () => downloadJSON({ summaryLogs: session.logs }, `sesion-${session.date}.json`), onExportText: () => downloadTXT(generateSessionText(session.logs, session.date, session.totalCalories), `sesion-${session.date}.txt`) })} className="p-2 text-gray-400 hover:text-cyan-500 hover:bg-cyan-500/10 rounded-full transition-colors" aria-label={`Exportar sesión`}><Save className="w-5 h-5" /></button>
+                  <button onClick={() => setDeletionTarget({ type: 'session', id: session.date, name: `la sesión del ${formatFullDisplayDate(session.date)}`, sessionLogs: session.logs })} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors" aria-label={`Eliminar sesión`}><Trash2 className="w-5 h-5" /></button>
                 </div>
-              </button>
-              
-              <div className={`grid transition-[grid-template-rows] duration-500 ease-in-out ${isWeekExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-                <div className="overflow-hidden">
-                  <div className="p-4 sm:p-6 space-y-6">
-                    {Object.keys(weekData.days).map((dayName) => {
-                      const dayInfo = dayConfig[dayName];
-                      const { exercises } = weekData.days[dayName];
-                      
-                      if (exercises.length === 0) return null;
-                      if (!dayInfo) return null;
+              </div>
 
-                      const dayKey = `${weekKey}-${dayName}`;
-                      const isDayExpanded = !summaryCollapsedDays.includes(dayKey);
-                      const Icon = dayInfo.icon;
-                      const dayTitle = dayInfo.title;
-
-                      const exercisesByName = exercises.reduce((acc, log) => {
-                          const name = log.exerciseName || 'Sin Nombre';
-                          if (!acc[name]) acc[name] = [];
-                          acc[name].push(log);
-                          return acc;
-                      }, {} as Record<string, ExerciseLog[]>);
-
-                      return (
-                        <div key={dayName}>
-                           <div className="space-y-4">
-                              <div className="border-b-2 border-cyan-500/50 pb-3 mb-4">
-                                <button
-                                  onClick={() => toggleSummaryDayCollapse(dayKey)}
-                                  className="w-full grid grid-cols-[1fr_auto_1fr] items-center group"
-                                  aria-expanded={isDayExpanded}
-                                >
-                                  <div />
-                                  <h2 className="text-2xl sm:text-3xl font-extrabold text-cyan-400 flex items-center justify-center gap-3 tracking-tight transition-colors group-hover:text-cyan-300">
-                                    <span className="bg-cyan-900/50 p-2 rounded-full"><Icon className="w-6 sm:w-7 h-6 sm:h-7" /></span>
-                                    {dayTitle}
-                                  </h2>
-                                  <div className="justify-self-end flex items-center gap-2">
-                                    <button
-                                      onClick={(e) => {
-                                          e.stopPropagation();
-                                          setExportOptions({
-                                              title: `Exportar ${dayTitle}`,
-                                              onExportJson: () => exportDayData(weekKey, dayName),
-                                              onExportText: () => exportDayDataAsText(weekKey, dayName)
-                                          });
-                                      }}
-                                      className="p-2 text-gray-400 hover:text-cyan-500 hover:bg-cyan-500/10 rounded-full transition-colors"
-                                      aria-label={`Exportar datos de ${dayTitle}`}
-                                    >
-                                      <Save className="w-5 h-5" />
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                          e.stopPropagation();
-                                          setDeletionTarget({
-                                              type: 'dayExercises',
-                                              id: weekKey,
-                                              day: dayName,
-                                              name: `todos los registros de ${dayTitle} de esta semana`
-                                          });
-                                      }}
-                                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
-                                      aria-label={`Eliminar registros de ${dayTitle} de esta semana`}
-                                    >
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
-                                  </div>
-                                </button>
-                              </div>
-                              <div className={`grid transition-[grid-template-rows] duration-500 ease-in-out ${isDayExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-                                <div className="overflow-hidden">
-                                  <div className="space-y-4">
-                                      {Object.entries(exercisesByName).map(([exerciseName, logs]) => {
-                                        const groupKey = `${dayKey}-${exerciseName}`;
-                                        const isGroupExpanded = !summaryCollapsedExercises.includes(groupKey);
-
-                                        return (
-                                          <div key={groupKey} className="bg-black/20 rounded-xl border border-white/10 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-500/10 hover:border-cyan-400/50 animate-zoomInPop opacity-0">
-                                              <button
-                                                onClick={() => toggleSummaryExerciseCollapse(groupKey)}
-                                                className="w-full p-3 sm:p-4 flex justify-between items-center text-left"
-                                              >
-                                                <p className="font-bold text-white text-lg">{exerciseName}</p>
-                                                <div className="flex items-center gap-2">
-                                                  <span className="text-xs font-semibold bg-gray-700 text-cyan-300 rounded-full px-2 py-0.5">
-                                                    {logs.length} {logs.length > 1 ? 'registros' : 'registro'}
-                                                  </span>
-                                                  <ChevronDown className={`w-6 h-6 text-cyan-400 transition-transform duration-300 ${isGroupExpanded ? 'rotate-180' : ''}`} />
-                                                </div>
-                                              </button>
-                                              <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${!isGroupExpanded ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'}`}>
-                                                  <div className="overflow-hidden">
-                                                      <div className="px-3 sm:px-4 pb-1 divide-y divide-gray-700/50">
-                                                          {logs.map(log => (
-                                                              <LogDetails key={log.id} log={log} allLogs={allLogsForComparison} />
-                                                          ))}
-                                                      </div>
-                                                  </div>
-                                              </div>
-                                          </div>
-                                        )
-                                      })}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+              <div className="p-4 sm:p-6 space-y-6">
+                {!isToday && session.totalCalories > 0 && (
+                    <div className="bg-gray-800/60 border border-white/10 rounded-lg p-4 flex items-center justify-center gap-4 text-center text-white">
+                        <Flame className="w-8 h-8 text-orange-400 flex-shrink-0" />
+                        <div>
+                            <p className="text-base font-semibold text-gray-300">Quemaste un total de</p>
+                            <p className="text-2xl font-bold">{session.totalCalories.toLocaleString('es-ES')} Kcal</p>
                         </div>
-                      )
-                    })}
-                  </div>
-                </div>
+                    </div>
+                )}
+                
+                {sortedDayKeys.map(dayName => {
+                  const dayInfo = dayConfig[dayName];
+                  const dayLogs = logsByDay[dayName];
+                  if (!dayInfo || dayLogs.length === 0) return null;
+
+                  const dayKey = `${session.date}-${dayName}`;
+                  const isDayExpanded = !summaryCollapsedDays.includes(dayKey);
+                  const Icon = dayInfo.icon;
+
+                  const exercisesByName = dayLogs.reduce((acc, log) => {
+                    const name = log.exerciseName || 'Sin Nombre';
+                    if (!acc[name]) acc[name] = [];
+                    acc[name].push(log);
+                    return acc;
+                  }, {} as Record<string, ExerciseLog[]>);
+
+                  return (
+                    <div key={dayName}>
+                       <button onClick={() => toggleSummaryDayCollapse(dayKey)} className="w-full flex justify-between items-center group gap-4 p-3 -m-3 rounded-lg hover:bg-white/5 transition-colors" aria-expanded={isDayExpanded}>
+                          <h3 className="text-2xl sm:text-3xl font-extrabold text-cyan-400 flex items-center justify-center gap-3 tracking-tight">
+                            <span className="bg-cyan-900/50 p-2 rounded-full flex-shrink-0"><Icon className="w-6 sm:w-7 h-6 sm:h-7" /></span>
+                            <span className="truncate">{dayInfo.title}</span>
+                          </h3>
+                          <ChevronDown className={`w-6 h-6 text-cyan-400 transition-transform duration-300 ${isDayExpanded ? 'rotate-180' : ''}`} />
+                       </button>
+                       <div className={`grid transition-[grid-template-rows] duration-500 ease-in-out ${isDayExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                         <div className="overflow-hidden">
+                           <div className="pt-4 space-y-4">
+                             {Object.entries(exercisesByName).map(([exerciseName, logs]) => {
+                               const groupKey = `${dayKey}-${exerciseName}`;
+                               const isGroupExpanded = !summaryCollapsedExercises.includes(groupKey);
+                               return (
+                                 <div key={groupKey} className="bg-black/20 rounded-xl border border-white/10 transition-all duration-300 hover:-translate-y-px hover:shadow-lg hover:shadow-cyan-500/10 hover:border-cyan-400/50">
+                                   <button onClick={() => toggleSummaryExerciseCollapse(groupKey)} className="w-full p-3 sm:p-4 flex justify-between items-center text-left">
+                                     <p className="font-bold text-white text-lg">{exerciseName}</p>
+                                     <div className="flex items-center gap-2"><span className="text-xs font-semibold bg-gray-700 text-cyan-300 rounded-full px-2 py-0.5">{logs.length} {logs.length > 1 ? 'registros' : 'registro'}</span><ChevronDown className={`w-6 h-6 text-cyan-400 transition-transform duration-300 ${isGroupExpanded ? 'rotate-180' : ''}`} /></div>
+                                   </button>
+                                   <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${!isGroupExpanded ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'}`}>
+                                     <div className="overflow-hidden"><div className="px-3 sm:px-4 pb-1 divide-y divide-gray-700/50">{logs.map(log => <LogDetails key={log.id} log={log} allLogs={allLogsForComparison} />)}</div></div>
+                                   </div>
+                                 </div>
+                               )
+                             })}
+                           </div>
+                         </div>
+                       </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )

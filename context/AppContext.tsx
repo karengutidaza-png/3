@@ -19,6 +19,7 @@ interface AppState {
   // Fix: Add state for Cardio/Nada sessions.
   dailyNadaSessions: NadaSession[];
   summaryNadaSessions: NadaSession[];
+  simulatedDate: string | null;
 }
 
 interface AppContextType {
@@ -38,6 +39,9 @@ interface AppContextType {
   saveLogToSummary: (logId: string) => void;
   removeSummaryLog: (id: string) => void;
   removeSummaryLogMedia: (logId: string, mediaIndex: number) => void;
+  todaysDateISO: string;
+  simulatedDate: string | null;
+  setSimulatedDate: (date: string | null) => void;
 
   // Sede-specific
   favoriteExercises: FavoriteExercise[];
@@ -133,14 +137,8 @@ const calculateIMC = (weight: string, height: string): string => {
     return '';
 };
 
-const getTodaysDateISO = () => {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    return now.toISOString().split('T')[0];
-};
-
 const createInitialNadaFormData = (): NadaFormData => ({
-    date: getTodaysDateISO(),
+    date: '',
     title: '',
     metrics: {
         speed: '',
@@ -264,6 +262,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         dailyNadaSessions: [],
         summaryNadaSessions: [],
         sedeOrder: Object.keys(initialSedes),
+        simulatedDate: null,
     };
     try {
       const serializedState = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -395,6 +394,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const { activeSede, sedes, dailyLogs, summaryLogs } = appState;
   const activeSedeData = activeSede ? sedes[activeSede] : null;
 
+  const todaysDateISO = useMemo(() => {
+    if (appState.simulatedDate && /^\d{4}-\d{2}-\d{2}$/.test(appState.simulatedDate)) {
+        return appState.simulatedDate;
+    }
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().split('T')[0];
+  }, [appState.simulatedDate]);
+
   useEffect(() => {
     try {
       const serializedState = JSON.stringify(appState);
@@ -403,6 +411,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error("Could not save state to local storage", error);
     }
   }, [appState]);
+
+  const setSimulatedDate = (date: string | null) => {
+    setAppState(prev => ({...prev, simulatedDate: date }));
+  };
 
   const sedeColorStyles = useMemo(() => {
     const colorSchemes: SedeColorStyles[] = [
@@ -1235,6 +1247,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       sedeOrder: appState.sedeOrder,
       dailyNadaSessions: appState.dailyNadaSessions || [],
       summaryNadaSessions: appState.summaryNadaSessions || [],
+      simulatedDate: appState.simulatedDate,
     };
     const date = new Date().toISOString().slice(0, 10);
     downloadJSON(dataToExport, `progreso-gym-completo-${date}.json`);
@@ -1267,6 +1280,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           sedeOrder: importedData.sedeOrder || Object.keys(importedData.sedes || {}),
           dailyNadaSessions: importedData.dailyNadaSessions || [],
           summaryNadaSessions: importedData.summaryNadaSessions || [],
+          simulatedDate: importedData.simulatedDate || null,
         };
         
         // Repopulate exercise names from the imported logs
@@ -1617,6 +1631,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     saveLogToSummary,
     removeSummaryLog,
     removeSummaryLogMedia,
+    todaysDateISO,
+    simulatedDate: appState.simulatedDate,
+    setSimulatedDate,
     workoutDays: activeSedeData?.workoutDays || {},
     sedeColorStyles,
     exerciseNames: activeSedeData?.exerciseNames || {},

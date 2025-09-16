@@ -1,16 +1,10 @@
 
-
-
-
-
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import MyExercises from './pages/MyExercises';
 import WorkoutDay from './pages/WorkoutDay';
 import Summary from './pages/Summary';
-import { Sparkles, Menu, Home, BarChart4, Dumbbell, Shirt, Footprints, Shield, Hand, ChevronLeft, ChevronRight, X, Weight, Repeat, Zap, Gauge, TrendingUp, Flame, MapPin, NotebookText, Clock, HeartPulse, Award, ArrowUp, ArrowDown, Lightbulb, ChevronDown, Scale } from 'lucide-react';
+import { Sparkles, Menu, Home, BarChart4, Dumbbell, Shirt, Footprints, Shield, Hand, ChevronLeft, ChevronRight, X, Weight, Repeat, Zap, Gauge, TrendingUp, Flame, MapPin, NotebookText, Clock, HeartPulse, Award, ArrowUp, ArrowDown, Lightbulb, ChevronDown, Scale, Bug } from 'lucide-react';
 import StretchingPage from './pages/StretchingPage';
 import ConsejosPage from './pages/ConsejosPage';
 import type { ExerciseLog } from './types';
@@ -179,9 +173,9 @@ const useActiveDates = () => {
   }, [summaryLogs]);
 };
 
-const MonthCalendarModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({ isOpen, onClose }) => {
+const MonthCalendarModal: React.FC<{ isOpen: boolean; onClose: () => void; todayStr: string; }> = ({ isOpen, onClose, todayStr }) => {
   const activeDates = useActiveDates();
-  const [viewDate, setViewDate] = useState(new Date());
+  const [viewDate, setViewDate] = useState(new Date(todayStr + 'T00:00:00'));
   
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -191,11 +185,12 @@ const MonthCalendarModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = 
     };
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown);
+      setViewDate(new Date(todayStr + 'T00:00:00'));
     }
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, todayStr]);
 
   const changeMonth = (amount: number) => {
     setViewDate(prev => {
@@ -230,7 +225,6 @@ const MonthCalendarModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = 
   }, [viewDate]);
 
   if (!isOpen) return null;
-  const todayStr = toYYYYMMDD(new Date());
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn" onClick={onClose}>
@@ -566,11 +560,11 @@ const DailySummaryModal: React.FC<{ date: string | null; onClose: () => void; on
 
 
 // The user refers to this as "calendario inicio"
-const HomeWeekCalendar: React.FC<{ onClick: () => void; }> = ({ onClick }) => {
+const HomeWeekCalendar: React.FC<{ onClick: () => void; todayStr: string; }> = ({ onClick, todayStr }) => {
   const activeDates = useActiveDates();
 
   const weekDates = useMemo(() => {
-    const today = new Date();
+    const today = new Date(todayStr + 'T00:00:00');
     const currentDay = today.getDay();
     const firstDayOfWeek = new Date(today);
     const diff = currentDay === 0 ? -6 : 1 - currentDay;
@@ -583,9 +577,7 @@ const HomeWeekCalendar: React.FC<{ onClick: () => void; }> = ({ onClick }) => {
       dates.push(date);
     }
     return dates;
-  }, []);
-
-  const todayStr = toYYYYMMDD(new Date());
+  }, [todayStr]);
 
   return (
     <button onClick={onClick} className="w-full max-w-md focus-glow rounded-lg" aria-label="Abrir calendario mensual">
@@ -623,11 +615,11 @@ const HomeWeekCalendar: React.FC<{ onClick: () => void; }> = ({ onClick }) => {
 };
 
 // The user refers to this as "calendario pestañas"
-const SedeWeekCalendar: React.FC<{ onDateClick: (date: string) => void; onEmptyDateClick: () => void; }> = ({ onDateClick, onEmptyDateClick }) => {
+const SedeWeekCalendar: React.FC<{ onDateClick: (date: string) => void; onEmptyDateClick: () => void; todayStr: string; }> = ({ onDateClick, onEmptyDateClick, todayStr }) => {
   const activeDates = useActiveDates();
 
   const weekDates = useMemo(() => {
-    const today = new Date();
+    const today = new Date(todayStr + 'T00:00:00');
     const currentDay = today.getDay();
     const firstDayOfWeek = new Date(today);
     const diff = currentDay === 0 ? -6 : 1 - currentDay;
@@ -640,9 +632,7 @@ const SedeWeekCalendar: React.FC<{ onDateClick: (date: string) => void; onEmptyD
       dates.push(date);
     }
     return dates;
-  }, []);
-
-  const todayStr = toYYYYMMDD(new Date());
+  }, [todayStr]);
 
   return (
     <div className="w-full max-w-md">
@@ -686,7 +676,7 @@ const SedeWeekCalendar: React.FC<{ onDateClick: (date: string) => void; onEmptyD
 
 
 const AppContent: React.FC = () => {
-  const { activeSede, setActiveSede } = useAppContext();
+  const { activeSede, setActiveSede, todaysDateISO, simulatedDate, setSimulatedDate } = useAppContext();
   const [activeTab, setActiveTab] = useState('Inicio');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMonthCalendarOpen, setIsMonthCalendarOpen] = useState(false);
@@ -763,7 +753,7 @@ const AppContent: React.FC = () => {
 
   return (
     <>
-      <MonthCalendarModal isOpen={isMonthCalendarOpen} onClose={() => setIsMonthCalendarOpen(false)} />
+      <MonthCalendarModal isOpen={isMonthCalendarOpen} onClose={() => setIsMonthCalendarOpen(false)} todayStr={todaysDateISO} />
       <DailySummaryModal date={dailySummaryDate} onClose={() => setDailySummaryDate(null)} onDateChange={setDailySummaryDate} />
       <div className="min-h-screen bg-transparent text-gray-100 font-sans">
         <header className="sticky top-0 z-20 bg-gray-900/50 backdrop-blur-xl border-b border-white/10 p-4">
@@ -781,7 +771,7 @@ const AppContent: React.FC = () => {
             )}
             
             <div className="flex-grow flex justify-center items-center">
-              {activeSede ? <SedeWeekCalendar onDateClick={setDailySummaryDate} onEmptyDateClick={() => setIsMonthCalendarOpen(true)} /> : <HomeWeekCalendar onClick={() => setIsMonthCalendarOpen(true)} />}
+              {activeSede ? <SedeWeekCalendar onDateClick={setDailySummaryDate} onEmptyDateClick={() => setIsMonthCalendarOpen(true)} todayStr={todaysDateISO} /> : <HomeWeekCalendar onClick={() => setIsMonthCalendarOpen(true)} todayStr={todaysDateISO}/>}
             </div>
             <div className="w-10" />
           </div>
@@ -871,6 +861,29 @@ const AppContent: React.FC = () => {
                     })}
                   </nav>
                 )}
+                 {/* Debug Date Simulator */}
+                <div className="mt-auto pt-4 border-t border-white/10">
+                    <h4 className="px-2 text-xs font-semibold uppercase text-gray-500 flex items-center gap-1.5"><Bug className="w-4 h-4"/> Debug</h4>
+                    <div className="p-2">
+                        <label htmlFor="simulated-date" className="text-sm text-gray-300">Simular Fecha</label>
+                        <div className="flex gap-2 mt-1">
+                            <input 
+                                type="date" 
+                                id="simulated-date" 
+                                value={simulatedDate || ''} 
+                                onChange={(e) => setSimulatedDate(e.target.value || null)} 
+                                className="w-full bg-gray-700 border border-gray-600 rounded-md py-1 px-2 text-white focus:ring-cyan-500 focus:border-cyan-500 transition" 
+                            />
+                            <button 
+                                onClick={() => setSimulatedDate(null)} 
+                                className="p-2 bg-gray-600 hover:bg-gray-500 rounded-md text-white transition-colors"
+                                aria-label="Resetear fecha"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </aside>
 

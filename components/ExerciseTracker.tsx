@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Plus, Trash2, Camera, X, CalendarDays, Weight, NotebookText, BarChart4, Repeat, PlusCircle, MinusCircle, History, Save, Check, ChevronDown, MapPin, ChevronLeft, ChevronRight, Clock, Flame, Zap, Gauge, TrendingUp, ChevronUp, ArrowUp, ArrowDown } from 'lucide-react';
@@ -8,15 +6,8 @@ import type { ExerciseLog, ExerciseMedia } from '../types';
 import CalendarModal from './CalendarModal';
 import ConfirmationModal from './ConfirmationModal';
 
-const getTodaysDateISO = () => {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    return now.toISOString().split('T')[0];
-};
-  
-const createInitialLogData = (): Omit<ExerciseLog, 'id' | 'day' | 'sede'> => ({
+const createInitialLogData = (): Omit<ExerciseLog, 'id' | 'day' | 'sede' | 'date'> => ({
     exerciseName: '',
-    date: getTodaysDateISO(),
     reps: '',
     kilos: '',
     series: '',
@@ -449,13 +440,14 @@ interface ExerciseLogModalProps {
     onClose: () => void;
     onSave: (data: Omit<ExerciseLog, 'id' | 'day' | 'sede'>) => void;
     dayName: string;
-    initialData?: ExerciseLog | null;
+    initialData?: Omit<ExerciseLog, 'id'| 'day' | 'sede'> | null;
     exerciseNames: { [dayName: string]: string[] };
     removeExerciseName: (dayName: string, exerciseName: string) => void;
 }
 
 const ExerciseLogModal: React.FC<ExerciseLogModalProps> = ({ isOpen, onClose, onSave, dayName, initialData, exerciseNames, removeExerciseName }) => {
-    const [formData, setFormData] = useState(initialData || createInitialLogData());
+    const { todaysDateISO } = useAppContext();
+    const [formData, setFormData] = useState(createInitialLogData() as ExerciseLog);
     const [isCalendarOpen, setIsCalendarOpen] = useState(false);
     const [isNotesVisible, setIsNotesVisible] = useState(false);
     const [isTimePickerOpen, setIsTimePickerOpen] = useState(false);
@@ -465,11 +457,11 @@ const ExerciseLogModal: React.FC<ExerciseLogModalProps> = ({ isOpen, onClose, on
     
     useEffect(() => {
         if (isOpen) {
-            const data = initialData || createInitialLogData();
-            setFormData(data);
+            const data = initialData ? { ...initialData } : { ...createInitialLogData(), date: todaysDateISO };
+            setFormData(data as ExerciseLog);
             setIsNotesVisible(!!data.notes);
         }
-    }, [isOpen, initialData]);
+    }, [isOpen, initialData, todaysDateISO]);
 
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -886,7 +878,7 @@ const DailyLogCard: React.FC<DailyLogCardProps> = ({
 
 
 const ExerciseTracker: React.FC<{ dayName: string }> = ({ dayName }) => {
-    const { dailyLogs, summaryLogs, addDailyLog, updateDailyLog, removeDailyLog, removeDailyLogMedia, saveLogToSummary, workoutDays, toggleExerciseLogExpansion, exerciseNames, removeExerciseName } = useAppContext();
+    const { dailyLogs, summaryLogs, addDailyLog, updateDailyLog, removeDailyLog, removeDailyLogMedia, saveLogToSummary, workoutDays, toggleExerciseLogExpansion, exerciseNames, removeExerciseName, todaysDateISO } = useAppContext();
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editingLog, setEditingLog] = useState<ExerciseLog | null>(null);
     const [logToDelete, setLogToDelete] = useState<ExerciseLog | null>(null);

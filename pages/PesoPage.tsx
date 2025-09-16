@@ -35,17 +35,6 @@ const getImcClassification = (imc: string | undefined) => {
   }
 };
 
-const calculateIMC = (weight: string, height: string): string => {
-    const weightNum = parseMetric(weight);
-    const heightNum = parseMetric(height);
-    if (weightNum && weightNum > 0 && heightNum && heightNum > 0) {
-        const heightInMeters = heightNum / 100;
-        const imc = weightNum / (heightInMeters * heightInMeters);
-        return imc.toFixed(2);
-    }
-    return '';
-};
-
 const getComparison = (current: number | null, prev: number | null): 'increase' | 'decrease' | 'same' | 'new' | null => {
   if (current === null) return null;
   if (prev === null) return 'new';
@@ -54,11 +43,10 @@ const getComparison = (current: number | null, prev: number | null): 'increase' 
   return 'same';
 };
 
+// Fix: Add `date` property to the initial entry data to align with the `formData` state type.
 const createInitialEntryData = (): Omit<WeightEntry, 'id' | 'imc'> => {
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   return {
-      date: now.toISOString().split('T')[0],
+      date: '',
       weight: '',
       fatPercentage: '',
       musclePercentage: '',
@@ -190,166 +178,51 @@ const HistoryCard: React.FC<{
             <div className="flex justify-between items-center mb-3">
                 <p className="font-semibold text-cyan-300">{formatFullDisplayDate(entry.date)}</p>
                 <div className="flex items-center gap-1">
-                    <button onClick={onEdit} className="p-2 text-gray-400 hover:text-cyan-400 transition rounded-full"><Pencil className="w-4 h-4"/></button>
-                    <button onClick={onDelete} className="p-2 text-gray-400 hover:text-red-500 transition rounded-full"><Trash2 className="w-4 h-4"/></button>
+                    <button onClick={onEdit} className="p-2 text-gray-400 hover:text-cyan-400 transition rounded-full hover:bg-cyan-500/10" aria-label="Editar registro"><Pencil className="w-5 h-5"/></button>
+                    <button onClick={onDelete} className="p-2 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-500/10" aria-label="Eliminar registro"><Trash2 className="w-5 h-5" /></button>
                 </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-2 gap-y-1 mb-auto">
-                <MetricDisplay icon={Weight} label="Peso" value={entry.weight} unit="kg" comparison={comparisons.weight} size="small"/>
-                <MetricDisplay icon={Ruler} label="Altura" value={entry.height} unit="cm" comparison={comparisons.height} size="small"/>
-                <MetricDisplay icon={BarChart4} label="IMC" value={entry.imc} unit="" comparison={comparisons.imc} size="small"/>
-                <MetricDisplay icon={Percent} label="Grasa" value={entry.fatPercentage} unit="%" comparison={comparisons.fatPercentage} size="small"/>
-                <MetricDisplay icon={Percent} label="Músculo" value={entry.musclePercentage} unit="%" comparison={comparisons.musclePercentage} size="small"/>
-                <MetricDisplay icon={Percent} label="Visceral" value={entry.visceralFat} unit="" comparison={comparisons.visceralFat} size="small"/>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2">
+                <MetricDisplay size="small" icon={Weight} label="Peso" value={entry.weight} unit="kg" comparison={comparisons.weight} />
+                <MetricDisplay size="small" icon={BarChart4} label="IMC" value={entry.imc} unit="" comparison={comparisons.imc} />
+                <MetricDisplay size="small" icon={Percent} label="Grasa" value={entry.fatPercentage} unit="%" comparison={comparisons.fatPercentage} />
+                <MetricDisplay size="small" icon={Scale} label="Músculo" value={entry.musclePercentage} unit="%" comparison={comparisons.musclePercentage} />
             </div>
-            {entry.imc && (
-                <div className="mt-3 pt-3 border-t border-gray-700/50">
-                    <div className={`text-center p-2 rounded-md ${imcData.bgColor}`}>
-                        <p className={`font-bold text-sm ${imcData.color}`}>{imcData.classification}</p>
-                    </div>
+             {entry.imc && (
+                <div className="mt-2 text-center">
+                    <p className={`${imcData.bgColor} ${imcData.color} inline-block font-semibold px-2 py-0.5 rounded-full text-xs`}>{imcData.classification}</p>
                 </div>
             )}
         </div>
     );
 };
 
-
-// Main Component
-const PesoPage: React.FC = () => {
-    const { 
-      weightHistory, 
-      addWeightEntry, 
-      updateWeightEntry, 
-      removeWeightEntry 
-    } = useAppContext();
-
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingEntry, setEditingEntry] = useState<WeightEntry | null>(null);
-    const [entryToDelete, setEntryToDelete] = useState<WeightEntry | null>(null);
-
-    const latestFatEntry = useMemo(() => {
-        // The history is already sorted descending by date. Find the first one with a fat percentage.
-        return weightHistory.find(entry => entry.fatPercentage && entry.fatPercentage.trim() !== '') || null;
-    }, [weightHistory]);
-
-    const handleOpenModal = (entry: WeightEntry | null = null) => {
-        setEditingEntry(entry);
-        setIsModalOpen(true);
-    };
-
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setEditingEntry(null);
-    };
-
-    const handleSaveEntry = (data: Omit<WeightEntry, 'id' | 'imc'>) => {
-        if (editingEntry) {
-            updateWeightEntry(editingEntry.id, data);
-        } else {
-            addWeightEntry(data);
-        }
-        handleCloseModal();
-    };
-
-    const handleConfirmDelete = () => {
-        if (entryToDelete) {
-            removeWeightEntry(entryToDelete.id);
-            setEntryToDelete(null);
-        }
-    };
-    
-    return (
-        <div className="space-y-6 pb-24 animate-fadeInUp">
-            <ConfirmationModal 
-              isOpen={!!entryToDelete} 
-              onClose={() => setEntryToDelete(null)} 
-              onConfirm={handleConfirmDelete} 
-              title="Eliminar Registro" 
-              message={`¿Seguro que quieres eliminar el registro del ${entryToDelete ? formatFullDisplayDate(entryToDelete.date) : ''}?`}
-            />
-
-            <EntryModal
-              isOpen={isModalOpen}
-              onClose={handleCloseModal}
-              onSave={handleSaveEntry}
-              initialData={editingEntry}
-            />
-
-            {/* Header */}
-            <div className="bg-gray-900/60 backdrop-blur-md border border-white/10 rounded-2xl p-4 sm:p-6 text-center">
-              <h1 className="text-2xl font-extrabold text-cyan-400 flex items-center justify-center gap-3 uppercase tracking-wider">
-                  <Scale className="w-7 h-7" />
-                  Peso y Composición Corporal
-              </h1>
-            </div>
-
-            <GoalCard latestFatEntry={latestFatEntry} />
-            
-            {/* History Section */}
-            <div className="bg-gray-900/60 backdrop-blur-md border border-white/10 rounded-2xl p-4 sm:p-6">
-                <h2 className="text-lg font-bold text-white mb-4">Historial</h2>
-                {weightHistory.length > 0 ? (
-                    <div className="max-h-[70vh] overflow-y-auto custom-scrollbar pr-2 -mr-2">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {weightHistory.map((entry, index) => (
-                            <HistoryCard
-                                key={entry.id}
-                                entry={entry}
-                                previousEntry={weightHistory[index + 1] || null}
-                                onEdit={() => handleOpenModal(entry)}
-                                onDelete={() => setEntryToDelete(entry)}
-                            />
-                        ))}
-                      </div>
-                    </div>
-                ) : (
-                    <div className="text-center py-12 text-gray-400">
-                        <History className="w-12 h-12 mx-auto mb-2" />
-                        No hay historial de registros.
-                    </div>
-                )}
-            </div>
-
-
-            <button
-                onClick={() => handleOpenModal()}
-                className="fixed bottom-6 right-6 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-full shadow-lg shadow-cyan-500/30 transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-cyan-500/50 w-16 h-16 flex items-center justify-center z-20"
-                aria-label="Añadir nuevo registro de peso"
-            >
-                <Plus className="w-8 h-8" />
-            </button>
-        </div>
-    );
-}
-
-// Modal Component
-interface EntryModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (data: Omit<WeightEntry, 'id' | 'imc'>) => void;
-    initialData?: WeightEntry | null;
-}
-
-const EntryModal: React.FC<EntryModalProps> = ({ isOpen, onClose, onSave, initialData }) => {
-    const [formData, setFormData] = useState(initialData || createInitialEntryData());
+// Add/Edit Modal Component
+const WeightEntryModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (entry: Omit<WeightEntry, 'id' | 'imc'>) => void;
+  initialData?: WeightEntry | null;
+}> = ({ isOpen, onClose, onSave, initialData }) => {
+    const { todaysDateISO, weightHistory } = useAppContext();
+    const [formData, setFormData] = useState<Omit<WeightEntry, 'id' | 'imc'>>(createInitialEntryData());
     const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-    const [displayImc, setDisplayImc] = useState('');
 
     useEffect(() => {
         if (isOpen) {
-            const data = initialData || createInitialEntryData();
-            setFormData(data);
-            setDisplayImc(calculateIMC(data.weight, data.height));
+            if (initialData) {
+                const { id, imc, ...data } = initialData;
+                setFormData(data);
+            } else {
+                const lastHeight = weightHistory.length > 0 ? weightHistory[0].height : '173';
+                setFormData({ ...createInitialEntryData(), date: todaysDateISO, height: lastHeight });
+            }
         }
-    }, [isOpen, initialData]);
-
-    useEffect(() => {
-      setDisplayImc(calculateIMC(formData.weight, formData.height));
-    }, [formData.weight, formData.height]);
-
+    }, [isOpen, initialData, todaysDateISO, weightHistory]);
+    
     if (!isOpen) return null;
-
-    const handleInputChange = (field: keyof Omit<WeightEntry, 'id' | 'imc'>, value: string) => {
+    
+    const handleInputChange = (field: keyof Omit<WeightEntry, 'id' | 'imc' | 'date'>, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
@@ -361,59 +234,182 @@ const EntryModal: React.FC<EntryModalProps> = ({ isOpen, onClose, onSave, initia
 
     return (
         <>
-          <CalendarModal 
-            isOpen={isCalendarOpen} 
-            onClose={() => setIsCalendarOpen(false)} 
-            currentDate={formData.date} 
-            onSelectDate={(date) => handleInputChange('date', date)} 
-          />
-          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn" onClick={onClose}>
-              <div className="bg-gray-800/80 backdrop-blur-xl border border-white/10 rounded-lg shadow-xl p-6 w-full max-w-lg m-4 animate-scaleIn" onClick={e => e.stopPropagation()}>
-                  <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-xl font-bold text-cyan-400">{initialData ? 'Editar Registro' : 'Nuevo Registro'}</h2>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setIsCalendarOpen(true)} className="bg-gray-700 border border-gray-600 rounded-md py-1 px-2 transition text-white text-sm flex items-center gap-1.5">
-                            <CalendarDays className="w-4 h-4"/>
-                            {formatFullDisplayDate(formData.date)}
-                        </button>
-                        <button onClick={onClose} className="p-2 text-gray-400 hover:text-white transition"><X className="w-6 h-6" /></button>
-                      </div>
-                  </div>
-                  <div className="space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Weight className="w-4 h-4 text-cyan-400" />Peso (kg)</label>
-                            <input type="text" inputMode="decimal" value={formData.weight} onChange={(e) => handleInputChange('weight', e.target.value)} className={inputClasses} />
+            <CalendarModal isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} currentDate={formData.date} onSelectDate={(date) => setFormData(prev => ({...prev, date}))} />
+            <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn" onClick={onClose}>
+                <div className="bg-gray-800/80 backdrop-blur-xl border border-white/10 rounded-lg shadow-xl p-6 w-full max-w-lg m-4 animate-scaleIn flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                    <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                        <h2 className="text-xl font-bold text-cyan-400">{initialData ? 'Editar Registro' : 'Nuevo Registro de Peso'}</h2>
+                        <div className="flex items-center gap-1">
+                            <button onClick={() => setIsCalendarOpen(true)} className="bg-gray-700 border border-gray-600 rounded-md py-1 px-2 transition text-white text-sm flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-cyan-500/70">
+                                <CalendarDays className="w-4 h-4"/>
+                                {new Date(formData.date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                            </button>
+                            <button onClick={onClose} className="p-2 text-gray-400 hover:text-white transition"><X className="w-6 h-6" /></button>
                         </div>
-                        <div>
-                            <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Ruler className="w-4 h-4 text-cyan-400" />Altura (cm)</label>
-                            <input type="text" inputMode="decimal" value={formData.height} onChange={(e) => handleInputChange('height', e.target.value)} className={inputClasses} />
+                    </div>
+                    <div className="overflow-y-auto pr-2 space-y-4 no-scrollbar">
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Weight className="w-4 h-4 text-cyan-400" />Peso (kg)</label>
+                                <input type="text" inputMode="decimal" value={formData.weight} onChange={(e) => handleInputChange('weight', e.target.value)} className={inputClasses} />
+                            </div>
+                            <div>
+                                <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Ruler className="w-4 h-4 text-cyan-400" />Altura (cm)</label>
+                                <input type="text" inputMode="numeric" value={formData.height} onChange={(e) => handleInputChange('height', e.target.value)} className={inputClasses} />
+                            </div>
+                            <div>
+                                <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Percent className="w-4 h-4 text-cyan-400" />% Grasa Corporal</label>
+                                <input type="text" inputMode="decimal" value={formData.fatPercentage || ''} onChange={(e) => handleInputChange('fatPercentage', e.target.value)} className={inputClasses} />
+                            </div>
+                             <div>
+                                <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Scale className="w-4 h-4 text-cyan-400" />% Músculo</label>
+                                <input type="text" inputMode="decimal" value={formData.musclePercentage || ''} onChange={(e) => handleInputChange('musclePercentage', e.target.value)} className={inputClasses} />
+                            </div>
+                            <div className="sm:col-span-2">
+                                <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><History className="w-4 h-4 text-cyan-400" />Grasa Visceral (1-59)</label>
+                                <input type="text" inputMode="numeric" value={formData.visceralFat || ''} onChange={(e) => handleInputChange('visceralFat', e.target.value)} className={inputClasses} />
+                            </div>
                         </div>
-                        <div className="sm:col-span-2">
-                          <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><BarChart4 className="w-4 h-4 text-cyan-400" />IMC (Índice de Masa Corporal)</label>
-                          <input type="text" value={displayImc} readOnly disabled className={`${inputClasses} bg-gray-800 text-gray-300 font-bold`} />
+                    </div>
+                    <div className="mt-6 flex justify-end items-center flex-shrink-0">
+                        <div className="flex gap-4">
+                            <button onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-md transition">Cancelar</button>
+                            <button onClick={handleSaveClick} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-6 rounded-md transition">Guardar</button>
                         </div>
-                        <div>
-                            <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Percent className="w-4 h-4 text-cyan-400" />Grasa Corporal (%)</label>
-                            <input type="text" inputMode="decimal" value={formData.fatPercentage} onChange={(e) => handleInputChange('fatPercentage', e.target.value)} className={inputClasses} />
-                        </div>
-                        <div>
-                            <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Percent className="w-4 h-4 text-cyan-400" />Masa Muscular (%)</label>
-                            <input type="text" inputMode="decimal" value={formData.musclePercentage} onChange={(e) => handleInputChange('musclePercentage', e.target.value)} className={inputClasses} />
-                        </div>
-                        <div className="sm:col-span-2">
-                            <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-1"><Percent className="w-4 h-4 text-cyan-400" />Grasa Visceral</label>
-                            <input type="text" inputMode="decimal" value={formData.visceralFat} onChange={(e) => handleInputChange('visceralFat', e.target.value)} className={inputClasses} />
-                        </div>
-                      </div>
-                  </div>
-                  <div className="mt-6 flex justify-end gap-4">
-                      <button onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-md transition">Cancelar</button>
-                      <button onClick={handleSaveClick} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-6 rounded-md transition">Guardar</button>
-                  </div>
-              </div>
-          </div>
+                    </div>
+                </div>
+            </div>
         </>
+    );
+};
+
+// Main Page Component
+const PesoPage: React.FC = () => {
+    const { weightHistory, addWeightEntry, updateWeightEntry, removeWeightEntry } = useAppContext();
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingEntry, setEditingEntry] = useState<WeightEntry | null>(null);
+    const [entryToDelete, setEntryToDelete] = useState<WeightEntry | null>(null);
+
+    const handleOpenModal = (entry: WeightEntry | null = null) => {
+        setEditingEntry(entry);
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingEntry(null);
+    };
+
+    const handleSaveEntry = (entryData: Omit<WeightEntry, 'id' | 'imc'>) => {
+        if (editingEntry) {
+            updateWeightEntry(editingEntry.id, entryData);
+        } else {
+            addWeightEntry(entryData);
+        }
+        handleCloseModal();
+    };
+
+    const handleConfirmDelete = () => {
+        if (entryToDelete) {
+            removeWeightEntry(entryToDelete.id);
+            setEntryToDelete(null);
+        }
+    };
+
+    const latestEntry = useMemo(() => weightHistory[0] || null, [weightHistory]);
+    const previousEntry = useMemo(() => weightHistory[1] || null, [weightHistory]);
+    
+    const latestEntryWithFat = useMemo(() => 
+        weightHistory.find(e => e.fatPercentage && e.fatPercentage.trim() !== '') || null
+    , [weightHistory]);
+
+    const comparisons = useMemo(() => {
+        if (!latestEntry) return {};
+        const getMetricComparison = (metric: keyof Omit<WeightEntry, 'id'|'date'>) => 
+            getComparison(parseMetric(latestEntry[metric]), parseMetric(previousEntry?.[metric]));
+
+        return {
+            weight: getMetricComparison('weight'),
+            fatPercentage: getMetricComparison('fatPercentage'),
+            musclePercentage: getMetricComparison('musclePercentage'),
+            visceralFat: getMetricComparison('visceralFat'),
+            height: getMetricComparison('height'),
+            imc: getMetricComparison('imc'),
+        };
+    }, [latestEntry, previousEntry]);
+
+    const imcData = getImcClassification(latestEntry?.imc);
+
+    return (
+        <div className="space-y-6 pb-24 animate-fadeInUp">
+            <ConfirmationModal
+                isOpen={!!entryToDelete}
+                onClose={() => setEntryToDelete(null)}
+                onConfirm={handleConfirmDelete}
+                title="Eliminar Registro"
+                message={`¿Seguro que quieres eliminar el registro del ${entryToDelete ? new Date(entryToDelete.date + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : ''}?`}
+            />
+            <WeightEntryModal
+                isOpen={isModalOpen}
+                onClose={handleCloseModal}
+                onSave={handleSaveEntry}
+                initialData={editingEntry}
+            />
+            
+            <GoalCard latestFatEntry={latestEntryWithFat} />
+            
+            {/* Latest Entry Stats */}
+            {latestEntry && (
+                <div className="bg-gray-900/60 backdrop-blur-md border border-white/10 rounded-2xl p-4 sm:p-6">
+                    <h2 className="text-xl font-extrabold text-white mb-4">Último Registro</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <MetricDisplay icon={Weight} label="Peso" value={latestEntry.weight} unit="kg" comparison={comparisons.weight} />
+                        <MetricDisplay icon={BarChart4} label="IMC" value={latestEntry.imc} unit="" comparison={comparisons.imc} />
+                        <MetricDisplay icon={Percent} label="Grasa" value={latestEntry.fatPercentage} unit="%" comparison={comparisons.fatPercentage} />
+                        <MetricDisplay icon={Scale} label="Músculo" value={latestEntry.musclePercentage} unit="%" comparison={comparisons.musclePercentage} />
+                        <MetricDisplay icon={History} label="Visceral" value={latestEntry.visceralFat} unit="" comparison={comparisons.visceralFat} />
+                        <MetricDisplay icon={Ruler} label="Altura" value={latestEntry.height} unit="cm" comparison={comparisons.height} />
+                    </div>
+                     {latestEntry.imc && (
+                        <div className="mt-4 text-center">
+                            <p className={`${imcData.bgColor} ${imcData.color} inline-block font-semibold px-3 py-1 rounded-full text-sm`}>{imcData.classification}</p>
+                        </div>
+                    )}
+                </div>
+            )}
+            
+            {/* History */}
+            <div className="bg-gray-900/60 backdrop-blur-md border border-white/10 rounded-2xl p-4 sm:p-6">
+                 <h2 className="text-xl font-extrabold text-white mb-4 flex items-center gap-2"><History className="text-cyan-400" /> Historial</h2>
+                 <div className="space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
+                    {weightHistory.length === 0 ? (
+                        <div className="text-center py-8 px-4 border-2 border-dashed border-gray-700 rounded-lg">
+                            <Scale className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+                            <p className="text-gray-400">Aún no has registrado tu peso.</p>
+                            <p className="text-gray-500 text-sm">Usa el botón `+` para añadir tu primer registro.</p>
+                        </div>
+                    ) : (
+                        weightHistory.map((entry, index) => (
+                            <HistoryCard
+                                key={entry.id}
+                                entry={entry}
+                                previousEntry={weightHistory[index + 1] || null}
+                                onEdit={() => handleOpenModal(entry)}
+                                onDelete={() => setEntryToDelete(entry)}
+                            />
+                        ))
+                    )}
+                 </div>
+            </div>
+
+            <button
+                onClick={() => handleOpenModal()}
+                className="fixed bottom-6 right-6 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-full shadow-lg shadow-cyan-500/30 transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-cyan-500/50 w-16 h-16 flex items-center justify-center z-20"
+                aria-label="Añadir nuevo registro de peso"
+            >
+                <Plus className="w-8 h-8" />
+            </button>
+        </div>
     );
 };
 
