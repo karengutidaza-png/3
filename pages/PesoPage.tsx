@@ -21,17 +21,17 @@ const getImcClassification = (imc: string | undefined) => {
   }
 
   if (imcNum < 18.5) {
-    return { classification: 'Peso inferior al normal', color: 'text-blue-400', bgColor: 'bg-blue-500/10' };
+    return { classification: 'Bajo de Peso', color: 'text-blue-400', bgColor: 'bg-blue-500/10' };
   } else if (imcNum >= 18.5 && imcNum <= 24.9) {
     return { classification: 'Peso normal', color: 'text-green-400', bgColor: 'bg-green-500/10' };
   } else if (imcNum >= 25 && imcNum <= 29.9) {
     return { classification: 'Sobrepeso', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10' };
   } else if (imcNum >= 30 && imcNum <= 34.9) {
-    return { classification: 'Obesidad I', color: 'text-red-400', bgColor: 'bg-red-500/10' };
+    return { classification: 'Obesidad Ligera', color: 'text-orange-400', bgColor: 'bg-orange-500/10' };
   } else if (imcNum >= 35 && imcNum <= 39.9) {
-    return { classification: 'Obesidad II', color: 'text-red-400', bgColor: 'bg-red-500/10' };
+    return { classification: 'Obesidad', color: 'text-red-400', bgColor: 'bg-red-500/10' };
   } else { // imcNum >= 40
-    return { classification: 'Obesidad III', color: 'text-red-400', bgColor: 'bg-red-500/10' };
+    return { classification: 'Obesidad Grave', color: 'text-red-500', bgColor: 'bg-red-500/20' };
   }
 };
 
@@ -293,12 +293,12 @@ const WeightEntryModal: React.FC<{
                                             "El Índice de Masa Corporal (IMC) es una medida que relaciona el peso y la altura para estimar la grasa corporal de una persona.\n\n" +
                                             "Fórmula: peso (kg) / [altura (m)]²\n\n" +
                                             "Clasificaciones de la OMS:\n" +
-                                            "• Menos de 18.5: Peso inferior al normal\n" +
+                                            "• Menos de 18.5: Bajo de Peso\n" +
                                             "• 18.5 - 24.9: Peso normal\n" +
                                             "• 25.0 - 29.9: Sobrepeso\n" +
-                                            "• 30.0 - 34.9: Obesidad I\n" +
-                                            "• 35.0 - 39.9: Obesidad II\n" +
-                                            "• 40.0 o más: Obesidad III"
+                                            "• 30.0 - 34.9: Obesidad Ligera\n" +
+                                            "• 35.0 - 39.9: Obesidad\n" +
+                                            "• 40.0 o más: Obesidad Grave"
                                         )}
                                         className="text-gray-500 hover:text-cyan-400 transition-colors"
                                         aria-label="Más información sobre IMC"
